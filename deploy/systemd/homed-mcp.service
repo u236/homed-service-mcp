@@ -1,0 +1,12 @@
+[Unit]
+Description=HOMEd MCP Service
+
+[Service]
+ExecStart=/usr/bin/homed-mcp
+Environment=LD_LIBRARY_PATH=/usr/lib
+Environment=QT_PLUGIN_PATH=/usr/lib/qt5/plugins
+KillSignal=SIGTERM
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

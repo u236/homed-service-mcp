@@ -1,0 +1,6 @@
+#!/bin/bash
+
+systemctl stop homed-mcp.service
+systemctl disable homed-mcp.service
+
+exit 0
