@@ -1,6 +1,7 @@
 #include <QDateTime>
 #include <QUuid>
 #include "controller.h"
+#include "expose.h"
 #include "logger.h"
 #include "parser.h"
 
@@ -120,19 +121,10 @@ QJsonObject Controller::describeDevice(const Device &device, bool full)
 
     if (full)
     {
-        if (!device->exposes().isEmpty())
-            json.insert("exposes", device->exposes());
+        QJsonObject exposes = Expose::expand(device);
 
-        if (!device->properties().isEmpty())
-        {
-            const QMap <quint8, QVariantMap> &properties = device->properties();
-            QJsonObject state;
-
-            for (auto it = properties.begin(); it != properties.end(); it++)
-                state.insert(it.key() ? QString::number(it.key()) : QString("common"), QJsonObject::fromVariantMap(it.value()));
-
-            json.insert("state", state);
-        }
+        if (!exposes.isEmpty())
+            json.insert("exposes", exposes);
     }
 
     return json;
@@ -296,6 +288,7 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
                 mqttSubscribe(mqttTopic("expose/%1").arg(topic));
                 mqttSubscribe(mqttTopic("fd/%1").arg(topic));
                 mqttSubscribe(mqttTopic("fd/%1/#").arg(topic));
+                mqttPublish(mqttTopic("command/%1").arg(service), {{"action", "getProperties"}, {"device", names ? name : id}, {"service", "mcp"}});
             }
         }
 
@@ -560,37 +553,13 @@ QJsonArray Controller::toolsList(void)
         tools.append(QJsonObject {
             {"name", "set_properties"},
             {"description",
-                "Publish property updates to HOMEd devices in a single call. Always prefer a single batch call to multiple sequential calls — e.g. \"turn on all lights in the workshop\" is ONE call with the full list of operations, not N separate calls.\n"
+                "Publish property updates to HOMEd devices in a single batch call. Always prefer one call with many operations to many sequential calls.\n"
                 "\n"
-                "One operation targets ONE (device, endpoint) pair and may carry MULTIPLE sub-keys at once. Group sub-keys together whenever they belong to the same device+endpoint — e.g. turning a light on AND setting its brightness in one go is ONE operation with `properties: {status: \"on\", level: 200}`, not two. Different endpoints of the same device (or sub-keys in common with _N suffix vs in a numeric endpoint) must stay in separate operations because they map to different td/ topics. Operations are processed independently — failure on one does not abort the others.\n"
+                "One operation targets ONE (device, endpoint) pair. To know what you can write, call get_device (or list_devices with includeState=true) and inspect `exposes.<endpoint>.properties`: every entry with `action: true` is writable, the key is the exact sub-key you put under `properties`, and `enum`/`min`/`max`/`unit`/`note` describe the accepted value. `endpoint` is the numeric exposes key — omit it for `exposes.common` (also when sub-keys carry a `_N` suffix). Group several sub-keys of the same (device, endpoint) into one operation.\n"
                 "\n"
-                "STEP 1 — determine endpoint addressing for each operation. Inspect the device exposes (from get_device or list_devices includeState=true):\n"
-                "  • If the items live in a NUMERIC endpoint (e.g. exposes[\"3\"].items: [\"switch\"]) — set the `endpoint` to that number and use BARE sub-keys in `properties`. Items in numeric endpoints NEVER carry a _N suffix.\n"
-                "  • If the items live in exposes.common with a _N SUFFIX in their names (e.g. exposes.common.items: [\"switch_5\"]) — DO NOT set `endpoint`. Carry the same _N suffix in the sub-keys (so item \"switch_5\" → key \"status_5\"). Items with _N suffix only ever appear in common.\n"
-                "  • If the items live in exposes.common WITHOUT a _N suffix (single-endpoint device) — no `endpoint`, bare sub-keys.\n"
-                "  • If you got an entry from `named_properties` on the device: use its `endpoint` (if present) and `property` fields as is. The mapping is already correct.\n"
+                "If you matched the device via `named_properties`, its `endpoint` and `property` are already the values you need.\n"
                 "\n"
-                "STEP 2 — translate item NAMES to SUB-KEY names. For simple exposes the sub-key equals the item name. For composite exposes use this table (apply _N suffix from the item to the sub-key when needed):\n"
-                "  switch   → status\n"
-                "  lock     → status   (semantics INVERTED: \"off\" = LOCKED/closed for a valve, \"on\" = UNLOCKED/open)\n"
-                "  light    → status | level | color | colorTemperature   (which sub-keys are usable is listed in exposes.<endpoint>.options.light)\n"
-                "  cover    → cover | position\n"
-                "  thermostat → targetTemperature | systemMode | operationMode | fanMode   (temperature and runningStatus are READ-ONLY, NEVER write them)\n"
-                "  button   → the item name itself\n"
-                "\n"
-                "Value rules:\n"
-                "  status            — \"on\" | \"off\" | \"toggle\" (string)\n"
-                "  level             — integer brightness (range per device, see options.light)\n"
-                "  color             — array [r, g, b], each integer 0..255\n"
-                "  colorTemperature  — integer in mireds (light default range 153..500)\n"
-                "  cover             — \"open\" | \"close\" | \"stop\" (string). Note: fd/ reports \"open\"|\"closed\" but td/ accepts \"close\".\n"
-                "  position          — integer 0..100\n"
-                "  targetTemperature — number within options.targetTemperature.min..max\n"
-                "  systemMode / operationMode / fanMode — string from the corresponding enum in options\n"
-                "  toggle            — true | false (boolean)\n"
-                "  number            — number within min..max from options.<expose>\n"
-                "  select            — string from options.<expose>.enum\n"
-                "  button            — true (boolean, just triggers the action)\n"},
+                "Operations are processed independently — failure on one does not abort the others.\n"},
             {"inputSchema", QJsonObject {
                 {"type", "object"},
                 {"required", QJsonArray {"operations"}},
