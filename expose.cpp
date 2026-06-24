@@ -193,9 +193,7 @@ namespace Expose
             for (auto jt = endpoint->properties().begin(); jt != endpoint->properties().end(); jt++)
                 properties.insert(jt.key(), jt.value()->toJson());
 
-            QJsonObject endpointOut;
-            endpointOut.insert("properties", properties);
-            result.insert(endpoint->id() ? QString::number(endpoint->id()) : QString("common"), endpointOut);
+            result.insert(endpoint->id() ? QString::number(endpoint->id()) : QString("common"), properties);
         }
 
         return result;

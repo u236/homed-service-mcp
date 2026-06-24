@@ -1,3 +1,4 @@
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QFile>
 #include <QUuid>
@@ -6,6 +7,8 @@
 #include "logger.h"
 #include "parser.h"
 
+
+// not reviewed
 static QJsonArray loadJsonArray(const QString &path)
 {
     QFile file(path);
@@ -30,6 +33,7 @@ static QJsonArray loadJsonArray(const QString &path)
     return document.array();
 }
 
+// not reviewed
 Controller::Controller(const QString &configFile) : HOMEd(SERVICE_VERSION, configFile), m_tcpServer(new QTcpServer(this)), m_timer(new QTimer(this))
 {
     m_token = getConfig()->value("server/token").toString();
@@ -54,6 +58,24 @@ Controller::Controller(const QString &configFile) : HOMEd(SERVICE_VERSION, confi
     m_timer->start(1000);
 }
 
+
+
+
+
+Device Controller::findDevice(const QString &search)
+{
+    for (auto it = m_devices.begin(); it != m_devices.end(); it++)
+        if (search == it.value()->key() || search.startsWith(it.value()->key().append('/')) || search == it.value()->topic() || search.startsWith(it.value()->topic().append('/')) || search.toLower() == it.value()->name().toLower())
+            return it.value();
+
+    return Device();
+}
+
+
+
+
+
+// not reviewed
 void Controller::httpResponse(QTcpSocket *socket, quint16 code, const QByteArray &body, const QString &contentType)
 {
     QByteArray data;
@@ -89,27 +111,31 @@ void Controller::httpResponse(QTcpSocket *socket, quint16 code, const QByteArray
     socket->disconnectFromHost();
 }
 
+// not reviewed
 void Controller::rpcResponse(QTcpSocket *socket, const QJsonValue &id, const QJsonValue &result)
 {
     QJsonObject response = {{"jsonrpc", "2.0"}, {"id", id}, {"result", result}};
     httpResponse(socket, 200, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }
 
+// not reviewed
 void Controller::rpcError(QTcpSocket *socket, const QJsonValue &id, int code, const QString &message)
 {
     QJsonObject response = {{"jsonrpc", "2.0"}, {"id", id}, {"error", QJsonObject {{"code", code}, {"message", message}}}};
     httpResponse(socket, 200, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }
 
+// not reviewed
 QJsonObject Controller::toolResult(const QString &text, bool isError)
 {
     return QJsonObject {{"content", QJsonArray {QJsonObject {{"type", "text"}, {"text", text}}}}, {"isError", isError}};
 }
 
-QJsonArray Controller::devicePropertyNames(const Device &device)
+// not reviewed
+QJsonArray Controller::propertyNames(const Device &device)
 {
     QJsonArray result;
-    QString prefix = QString("%1/%2/").arg(device->type(), device->id());
+    QString prefix = device->key().append('/');
 
     for (auto it = m_propertyNames.begin(); it != m_propertyNames.end(); it++)
     {
@@ -135,57 +161,23 @@ QJsonArray Controller::devicePropertyNames(const Device &device)
     return result;
 }
 
-QJsonObject Controller::describeDevice(const Device &device, bool full)
+
+
+
+
+QJsonObject Controller::deviceInfo(const Device &device)
 {
-    QJsonObject json;
-    QJsonArray namedProperties = devicePropertyNames(device);
+    QJsonArray names = propertyNames(device);
+    QJsonObject json = {{"key", device->key()}, {"type", device->type()}, {"service", device->service()}, {"name", device->name()}, {"available", device->available()}}, properties = Expose::serialize(device);
 
-    json.insert("key", device->key());
-    json.insert("service", device->service());
-    json.insert("type", device->type());
-    json.insert("id", device->id());
-    json.insert("name", device->name().isEmpty() ? device->id() : device->name());
-    json.insert("available", device->available());
+    if (!names.isEmpty())
+        json.insert("named_properties", names);
 
-    if (!namedProperties.isEmpty())
-        json.insert("named_properties", namedProperties);
-
-    if (full)
-    {
-        QJsonObject exposes = Expose::serialize(device);
-
-        if (!exposes.isEmpty())
-            json.insert("exposes", exposes);
-    }
+    if (!properties.isEmpty())
+        json.insert("properties", properties);
 
     return json;
 }
-
-Device Controller::findDevice(const QString &search)
-{
-    Device byName, byId;
-
-    for (auto it = m_devices.begin(); it != m_devices.end(); it++)
-    {
-        const Device &device = it.value();
-
-        if (search == device->key() || search == device->topic() || search.startsWith(device->topic().append('/')))
-            return device;
-
-        if (search.compare(device->name(), Qt::CaseInsensitive) == 0)
-            byName = device;
-
-        if (search == device->id())
-            byId = device;
-    }
-
-    return byName.isNull() ? byId : byName;
-}
-
-
-
-
-
 
 void Controller::mqttConnected(void)
 {
@@ -213,10 +205,10 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
         mqttPublish(topic.name(), QJsonObject(), true);
         QCoreApplication::exit(EXIT_RESTART);
     }
-    if (subTopic == "recorder")
+    else if (subTopic == "recorder")
     {
         completeHistoryRequest(json.value("id").toString(), json);
-        // TODO: move completeHistoryRequest сode here
+        // TODO: move completeHistoryRequest code here
     }
     else if (subTopic.startsWith("service/"))
     {
@@ -333,13 +325,14 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
     }
     else if (subTopic.startsWith("expose/"))
     {
-        QString rest = subTopic.mid(subTopic.indexOf('/') + 1);
-        const Device &device = findDevice(rest);
+        const Device &device = findDevice(subTopic.mid(subTopic.indexOf('/') + 1));
+        QByteArray hash = QCryptographicHash::hash(message, QCryptographicHash::Md5);
 
-        if (device.isNull())
+        if (device.isNull() || device->hash() == hash)
             return;
 
-        Expose::parse(device, json);
+        Expose::parse(device, json); // TODO: refactor this
+        device->setHash(hash);
 
         mqttSubscribe(mqttTopic("fd/%1").arg(device->topic()));
         mqttSubscribe(mqttTopic("fd/%1/#").arg(device->topic()));
@@ -347,26 +340,24 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
     }
     else if (subTopic.startsWith("fd/"))
     {
-        QString endpoint = subTopic.mid(subTopic.indexOf('/') + 1);
-        const Device &device = findDevice(endpoint);
+        QString string = subTopic.mid(subTopic.indexOf('/') + 1);
+        const Device &device = findDevice(string);
 
-        if (device.isNull())
-            return;
-
-        QList <QString> endpointList = endpoint.split('/');
-        quint8 endpointId = endpointList.count() > 2 ? static_cast <quint8> (endpointList.last().toInt()) : 0;
-
-        if (!device->endpoints().contains(endpointId))
-            return;
-
-        const Endpoint &target = device->endpoints().value(endpointId);
-
-        for (auto it = json.begin(); it != json.end(); it++)
+        if (!device.isNull())
         {
-            if (!target->properties().contains(it.key()))
-                continue;
+            QList <QString> endpointList = string.split('/'), propertyList = {"action", "event", "scene"};
+            const Endpoint endpoint = device->endpoints().value(endpointList.count() > 2 ? static_cast <quint8> (endpointList.last().toInt()) : 0);
 
-            target->properties().value(it.key())->setValue(it.value().toVariant());
+            if (endpoint.isNull())
+                return;
+
+            for (auto it = json.begin(); it != json.end(); it++)
+            {
+                if (!endpoint->properties().contains(it.key()) || propertyList.contains(it.key().split('_').value(0)))
+                    continue;
+
+                endpoint->properties().value(it.key())->setValue(it.value().toVariant());
+            }
         }
     }
 }
@@ -402,9 +393,7 @@ void Controller::socketDisconnected(void)
 
 
 
-
-
-
+// not reviewed
 void Controller::readyRead(void)
 {
     QTcpSocket *socket = reinterpret_cast <QTcpSocket*> (sender());
@@ -489,6 +478,7 @@ void Controller::readyRead(void)
     handleRpc(socket, document.object());
 }
 
+// not reviewed
 void Controller::handleRpc(QTcpSocket *socket, const QJsonObject &request)
 {
     QString rpcMethod = request.value("method").toString();
@@ -554,6 +544,7 @@ void Controller::handleRpc(QTcpSocket *socket, const QJsonObject &request)
     rpcError(socket, rpcId, -32601, QString("Method not found: %1").arg(rpcMethod));
 }
 
+// not reviewed
 QJsonArray Controller::toolsList(void)
 {
     QJsonArray result;
@@ -572,11 +563,13 @@ QJsonArray Controller::toolsList(void)
     return result;
 }
 
+// not reviewed
 QJsonArray Controller::resourcesList(void)
 {
     return m_resources;
 }
 
+// not reviewed
 void Controller::handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, const QString &name, const QJsonObject &arguments)
 {
     logInfo << "tools/call" << name.toUtf8().constData() << QJsonDocument(arguments).toJson(QJsonDocument::Compact).constData();
@@ -594,7 +587,7 @@ void Controller::handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, co
             if (!type.isEmpty() && it.value()->type() != type)
                 continue;
 
-            result.append(describeDevice(it.value(), true));
+            result.append(deviceInfo(it.value()));
         }
 
         rpcResponse(socket, rpcId, toolResult(QJsonDocument(result).toJson(QJsonDocument::Compact)));
@@ -611,7 +604,7 @@ void Controller::handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, co
             return;
         }
 
-        rpcResponse(socket, rpcId, toolResult(QJsonDocument(describeDevice(device, true)).toJson(QJsonDocument::Compact)));
+        rpcResponse(socket, rpcId, toolResult(QJsonDocument(deviceInfo(device)).toJson(QJsonDocument::Compact)));
         return;
     }
 
@@ -710,14 +703,13 @@ void Controller::handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, co
 
         QString property = arguments.value("property").toString();
         QString correlationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
-        QString endpointKey = QString("%1/%2").arg(device->type(), device->id());
 
         m_pending.append({socket, rpcId, correlationId, QDateTime::currentMSecsSinceEpoch() + MCP_REQUEST_TIMEOUT});
 
         mqttPublish(mqttTopic("command/recorder"), QJsonObject {
             {"action", "getData"},
             {"id", correlationId},
-            {"endpoint", endpointKey},
+            {"endpoint", device->key()},
             {"property", property},
             {"start", arguments.value("start")},
             {"end", arguments.value("end")}
@@ -729,6 +721,7 @@ void Controller::handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, co
     rpcError(socket, rpcId, -32602, QString("Unknown tool: %1").arg(name));
 }
 
+// not reviewed
 void Controller::handleResourcesRead(QTcpSocket *socket, const QJsonValue &rpcId, const QString &uri)
 {
     QByteArray text;
@@ -738,7 +731,7 @@ void Controller::handleResourcesRead(QTcpSocket *socket, const QJsonValue &rpcId
         QJsonArray array;
 
         for (auto it = m_devices.begin(); it != m_devices.end(); it++)
-            array.append(describeDevice(it.value(), true));
+            array.append(deviceInfo(it.value()));
 
         text = QJsonDocument(array).toJson(QJsonDocument::Compact);
     }
@@ -758,6 +751,7 @@ void Controller::handleResourcesRead(QTcpSocket *socket, const QJsonValue &rpcId
     }}}});
 }
 
+// not reviewed
 void Controller::completeHistoryRequest(const QString &correlationId, const QJsonObject &payload)
 {
     PendingRequest pending;
@@ -782,6 +776,7 @@ void Controller::completeHistoryRequest(const QString &correlationId, const QJso
     rpcResponse(pending.socket, pending.rpcId, toolResult(QJsonDocument(result).toJson(QJsonDocument::Compact)));
 }
 
+// not reviewed
 void Controller::checkPending(void)
 {
     qint64 now = QDateTime::currentMSecsSinceEpoch();

@@ -38,8 +38,7 @@ public:
         m_key(key), m_topic(topic), m_name(name), m_available(false) {}
 
     inline QString key(void) { return m_key; }
-    inline QString type(void) { return m_key.left(m_key.indexOf('/')); }
-    inline QString id(void) { return m_key.mid(m_key.indexOf('/') + 1); }
+    inline QString type(void) { return m_topic.left(m_topic.indexOf('/')); }
     inline QString service(void) { return m_topic.left(m_topic.lastIndexOf('/')); }
 
     inline QString name(void) { return m_name; }
@@ -52,6 +51,9 @@ public:
     inline bool available(void) { return m_available; }
     inline void setAvailable(bool value) { m_available = value; }
 
+    inline QByteArray hash(void) { return m_hash; }
+    inline void setHash(const QByteArray &value) { m_hash = value; }
+
     inline QMap <quint8, Endpoint> &endpoints(void) { return m_endpoints; }
 
 private:
@@ -59,6 +61,7 @@ private:
     QString m_key, m_topic, m_name;
     bool m_available;
 
+    QByteArray m_hash;
     QMap <quint8, Endpoint> m_endpoints;
 
 };

@@ -43,15 +43,16 @@ private:
     QJsonArray m_tools, m_resources;
     QList <PendingRequest> m_pending;
 
+    Device findDevice(const QString &search);
+
     void httpResponse(QTcpSocket *socket, quint16 code, const QByteArray &body = QByteArray(), const QString &contentType = "application/json");
     void rpcResponse(QTcpSocket *socket, const QJsonValue &id, const QJsonValue &result);
     void rpcError(QTcpSocket *socket, const QJsonValue &id, int code, const QString &message);
 
     QJsonObject toolResult(const QString &text, bool isError = false);
-    QJsonObject describeDevice(const Device &device, bool full);
-    QJsonArray devicePropertyNames(const Device &device);
 
-    Device findDevice(const QString &search);
+    QJsonArray propertyNames(const Device &device);
+    QJsonObject deviceInfo(const Device &device);
 
     void handleRpc(QTcpSocket *socket, const QJsonObject &request);
     void handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, const QString &name, const QJsonObject &arguments);

@@ -18,7 +18,7 @@
   },
   {
     "name": "get_device",
-    "description": "Return full information about a single device: exposes (capabilities), options and last known property values. Pass either the canonical key (\"<type>/<id>\"), the device name, or the device id.",
+    "description": "Return full information about a single device: writable and readable properties with their current values and schema. Pass either the canonical key (\"<type>/<id>\") or the device name.",
     "inputSchema": {
       "type": "object",
       "required": [
@@ -27,7 +27,7 @@
       "properties": {
         "device": {
           "type": "string",
-          "description": "Device key, id or name."
+          "description": "Device key or name."
         }
       }
     }
@@ -35,7 +35,7 @@
   {
     "name": "set_properties",
     "requiresWrite": true,
-    "description": "Publish property updates to HOMEd devices in a single batch call. Always prefer one call with many operations to many sequential calls.\n\nOne operation targets ONE (device, endpoint) pair. To know what you can write, call get_device (or list_devices with includeState=true) and inspect `exposes.<endpoint>.properties`: every entry with `writable: true` may be set, the key is the exact sub-key you put under `properties`, and `enum`/`min`/`max`/`unit`/`note` describe the accepted value. `endpoint` is the numeric exposes key — omit it for `exposes.common` (also when sub-keys carry a `_N` suffix). Group several sub-keys of the same (device, endpoint) into one operation.\n\nIf you matched the device via `named_properties`, its `endpoint` and `property` are already the values you need.\n\nOperations are processed independently — failure on one does not abort the others.\n",
+    "description": "Publish property updates to HOMEd devices in a single batch call. Always prefer one call with many operations to many sequential calls.\n\nOne operation targets ONE (device, endpoint) pair. To know what you can write, call get_device (or list_devices) and inspect `properties.<endpoint>`: every entry with `writable: true` may be set, the key is the exact sub-key you put under `properties`, and `enum`/`min`/`max`/`unit`/`note` describe the accepted value. `endpoint` is the numeric key — omit it for `properties.common` (also when sub-keys carry a `_N` suffix). Group several sub-keys of the same (device, endpoint) into one operation.\n\nIf you matched the device via `named_properties`, its `endpoint` and `property` are already the values you need.\n\nOperations are processed independently — failure on one does not abort the others.\n",
     "inputSchema": {
       "type": "object",
       "required": [
@@ -55,11 +55,11 @@
             "properties": {
               "device": {
                 "type": "string",
-                "description": "Device key, id or name."
+                "description": "Device key or name."
               },
               "endpoint": {
                 "type": "integer",
-                "description": "Numeric endpoint id. Set when the items live under exposes[\"<N>\"]. Do NOT set when items are in exposes.common."
+                "description": "Numeric endpoint id. Set when the sub-keys live under properties[\"<N>\"]. Do NOT set when they live in properties.common."
               },
               "properties": {
                 "type": "object",
