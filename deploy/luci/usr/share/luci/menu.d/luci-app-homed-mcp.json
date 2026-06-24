@@ -1,0 +1,14 @@
+{
+  "admin/homed":
+  {
+    "title": "HOMEd",
+    "action": {"type": "firstchild"},
+    "depends": {"acl": ["luci-app-homed-mcp"]},
+    "order": 60
+  },
+  "admin/homed/mcp":
+  {
+    "title": "MCP Service Configuration",
+    "action": {"type": "view", "path": "homed/mcp"}
+  }
+}

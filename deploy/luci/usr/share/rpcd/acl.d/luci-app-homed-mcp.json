@@ -1,0 +1,16 @@
+{
+  "luci-app-homed-mcp":
+  {
+    "description": "Grant access to /etc/homed/homed-mcp.conf",
+    "read":
+    {
+      "file": {"/etc/homed/homed-mcp.conf": ["read"]},
+      "ubus": {"file": ["read"]}
+    },
+    "write":
+    {
+      "file": {"/etc/homed/homed-mcp.conf": ["write"]},
+      "ubus": {"file": ["write"]}
+    }
+  }
+}

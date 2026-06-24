@@ -9,6 +9,6 @@
     "uri": "homed://services",
     "name": "services",
     "title": "Online HOMEd services",
-    "description": "List of currently online HOMEd service topics (e.g. \"zigbee/a\", \"modbus\", \"recorder\")."
+    "description": "List of currently online HOMEd service topics (e.g. \"zigbee/a\", \"modbus/b\", \"recorder\", \"web\")."
   }
 ]

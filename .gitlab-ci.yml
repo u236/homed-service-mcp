@@ -1,0 +1,7 @@
+variables:
+  NAME: homed-mcp
+  DOCKER_EXTRA: cp -r deploy/data/usr/share/homed-mcp deploy/docker/share
+
+include:
+- project: 'homed/services/homed-common'
+  file: '.gitlab-ci/pipeline.yml'

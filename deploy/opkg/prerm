@@ -1,0 +1,6 @@
+#!/bin/sh
+
+/etc/init.d/homed-mcp stop
+/etc/init.d/homed-mcp disable
+
+exit 0
