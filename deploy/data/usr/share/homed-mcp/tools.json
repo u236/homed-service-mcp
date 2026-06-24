@@ -1,7 +1,7 @@
 [
   {
     "name": "list_devices",
-    "description": "List all smart-home devices known to HOMEd. Each entry has the device `name` plus an optional `named_properties` array — user-defined names for individual sub-properties (set in homed-web UI). For multi-channel devices the device `name` may be generic (e.g. \"Реле освещения\"), while `named_properties` tells which channel is \"Мастерская\", \"Кухня\", etc. To find a device by a human phrase, call this with no filters and search the returned array yourself — it is small enough.",
+    "description": "List all smart-home devices known to HOMEd. Each entry has the device `name` and a `properties` map keyed by endpoint (\"common\" or a numeric id). Individual sub-properties may carry a `display_name` — user-defined human-readable name set in homed-web UI; for multi-channel devices the device `name` is often generic (e.g. \"Реле освещения\") and the channel name (e.g. \"Мастерская\") lives inside the relevant sub-property's `display_name`. To find a device by a human phrase, call this with no filters and scan both device `name` and `display_name`s of its sub-properties — the full list is small enough.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -35,7 +35,7 @@
   {
     "name": "set_properties",
     "requiresWrite": true,
-    "description": "Publish property updates to HOMEd devices in a single batch call. Always prefer one call with many operations to many sequential calls.\n\nOne operation targets ONE (device, endpoint) pair. To know what you can write, call get_device (or list_devices) and inspect `properties.<endpoint>`: every entry with `writable: true` may be set, the key is the exact sub-key you put under `properties`, and `enum`/`min`/`max`/`unit`/`note` describe the accepted value. `endpoint` is the numeric key — omit it for `properties.common` (also when sub-keys carry a `_N` suffix). Group several sub-keys of the same (device, endpoint) into one operation.\n\nIf you matched the device via `named_properties`, its `endpoint` and `property` are already the values you need.\n\nOperations are processed independently — failure on one does not abort the others.\n",
+    "description": "Publish property updates to HOMEd devices in a single batch call. Always prefer one call with many operations to many sequential calls.\n\nOne operation targets ONE (device, endpoint) pair. To know what you can write, call get_device (or list_devices) and inspect `properties.<endpoint>`: every entry with `writable: true` may be set, the key is the exact sub-key you put under `properties`, and `enum`/`min`/`max`/`unit`/`note` describe the accepted value. `endpoint` is the numeric key — omit it for `properties.common` (also when sub-keys carry a `_N` suffix). Group several sub-keys of the same (device, endpoint) into one operation.\n\nOperations are processed independently — failure on one does not abort the others.\n",
     "inputSchema": {
       "type": "object",
       "required": [

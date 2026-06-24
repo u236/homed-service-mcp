@@ -32,5 +32,8 @@ QJsonObject PropertyObject::toJson(void)
     if (!m_itemsHint.isEmpty())
         json.insert("items", m_itemsHint);
 
+    if (!m_displayName.isEmpty())
+        json.insert("display_name", m_displayName);
+
     return json;
 }

@@ -46,11 +46,14 @@ public:
     inline QString itemsHint(void) { return m_itemsHint; }
     inline void setItemsHint(const QString &value) { m_itemsHint = value; }
 
+    inline QString displayName(void) { return m_displayName; }
+    inline void setDisplayName(const QString &value) { m_displayName = value; }
+
     QJsonObject toJson(void);
 
 private:
 
-    QString m_name, m_unit, m_note, m_itemsHint;
+    QString m_name, m_unit, m_note, m_itemsHint, m_displayName;
     QVariant m_value, m_min, m_max;
     QStringList m_enumValues;
     bool m_writable;

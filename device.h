@@ -38,8 +38,8 @@ public:
         m_key(key), m_topic(topic), m_name(name), m_available(false) {}
 
     inline QString key(void) { return m_key; }
-    inline QString type(void) { return m_topic.left(m_topic.indexOf('/')); }
-    inline QString service(void) { return m_topic.left(m_topic.lastIndexOf('/')); }
+    inline QString type(void) { return m_topic.mid(0, m_topic.indexOf('/')); }
+    inline QString service(void) { return m_topic.mid(0, m_topic.lastIndexOf('/')); }
 
     inline QString name(void) { return m_name; }
     inline void setName(const QString &value) { m_name = value; }

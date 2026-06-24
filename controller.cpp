@@ -71,6 +71,45 @@ Device Controller::findDevice(const QString &search)
     return Device();
 }
 
+quint8 Controller::getEndpointId(const QString &endpoint)
+{
+    QList <QString> list = endpoint.split('/');
+
+    if (list.count() > 2)
+        return static_cast <quint8> (list.last().toInt());
+
+    return 0;
+}
+
+void Controller::updatePropertyNames(const Device &device)
+{
+    QString prefix = device->key().append('/');
+
+    for (auto it = m_propertyNames.begin(); it != m_propertyNames.end(); it++)
+    {
+        if (it.key().startsWith(prefix))
+        {
+            const Endpoint &endpoint = device->endpoints().value(getEndpointId(it.key().mid(0, it.key().lastIndexOf('/'))));
+            QString property = it.key().split('/').last();
+
+            if (endpoint.isNull() || !endpoint->properties().contains(property))
+                continue;
+
+            endpoint->properties().value(property)->setDisplayName(it.value().toString());
+        }
+    }
+}
+
+QJsonObject Controller::deviceInfo(const Device &device)
+{
+    QJsonObject json = {{"key", device->key()}, {"type", device->type()}, {"service", device->service()}, {"name", device->name()}, {"available", device->available()}}, properties = Expose::serialize(device);
+
+    if (!properties.isEmpty())
+        json.insert("properties", properties);
+
+    return json;
+}
+
 
 
 
@@ -131,53 +170,9 @@ QJsonObject Controller::toolResult(const QString &text, bool isError)
     return QJsonObject {{"content", QJsonArray {QJsonObject {{"type", "text"}, {"text", text}}}}, {"isError", isError}};
 }
 
-// not reviewed
-QJsonArray Controller::propertyNames(const Device &device)
-{
-    QJsonArray result;
-    QString prefix = device->key().append('/');
-
-    for (auto it = m_propertyNames.begin(); it != m_propertyNames.end(); it++)
-    {
-        if (!it.key().startsWith(prefix))
-            continue;
-
-        QString rest = it.key().mid(prefix.length());
-        QStringList parts = rest.split('/');
-        QJsonObject entry;
-        entry.insert("display_name", it.value().toString());
-
-        if (parts.size() > 1)
-        {
-            entry.insert("endpoint", parts.value(0).toInt());
-            entry.insert("property", parts.value(1));
-        }
-        else
-            entry.insert("property", parts.value(0));
-
-        result.append(entry);
-    }
-
-    return result;
-}
 
 
 
-
-
-QJsonObject Controller::deviceInfo(const Device &device)
-{
-    QJsonArray names = propertyNames(device);
-    QJsonObject json = {{"key", device->key()}, {"type", device->type()}, {"service", device->service()}, {"name", device->name()}, {"available", device->available()}}, properties = Expose::serialize(device);
-
-    if (!names.isEmpty())
-        json.insert("named_properties", names);
-
-    if (!properties.isEmpty())
-        json.insert("properties", properties);
-
-    return json;
-}
 
 void Controller::mqttConnected(void)
 {
@@ -258,6 +253,9 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
             for (auto it = items.begin(); it != items.end(); it++)
                 m_propertyNames.insert(it.key(), it.value());
 
+            for (auto it = m_devices.begin(); it != m_devices.end(); it++)
+                updatePropertyNames(it.value());
+
             return;
         }
 
@@ -333,6 +331,7 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
 
         Expose::parse(device, json); // TODO: refactor this
         device->setHash(hash);
+        updatePropertyNames(device);
 
         mqttSubscribe(mqttTopic("fd/%1").arg(device->topic()));
         mqttSubscribe(mqttTopic("fd/%1/#").arg(device->topic()));
@@ -345,15 +344,15 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
 
         if (!device.isNull())
         {
-            QList <QString> endpointList = string.split('/'), propertyList = {"action", "event", "scene"};
-            const Endpoint endpoint = device->endpoints().value(endpointList.count() > 2 ? static_cast <quint8> (endpointList.last().toInt()) : 0);
+            QList <QString> list = {"action", "event", "scene"};
+            const Endpoint endpoint = device->endpoints().value(getEndpointId(string));
 
             if (endpoint.isNull())
                 return;
 
             for (auto it = json.begin(); it != json.end(); it++)
             {
-                if (!endpoint->properties().contains(it.key()) || propertyList.contains(it.key().split('_').value(0)))
+                if (!endpoint->properties().contains(it.key()) || list.contains(it.key().split('_').value(0)))
                     continue;
 
                 endpoint->properties().value(it.key())->setValue(it.value().toVariant());
@@ -403,7 +402,7 @@ void Controller::readyRead(void)
     if (separator < 0)
         return;
 
-    QList <QByteArray> head = request.left(separator).split('\n');
+    QList <QByteArray> head = request.mid(0, separator).split('\n');
     QByteArray body = request.mid(separator + 4);
     QList <QByteArray> target = head.value(0).trimmed().split(0x20);
     QString method = target.value(0), url = target.value(1);
@@ -417,7 +416,7 @@ void Controller::readyRead(void)
         if (colon < 0)
             continue;
 
-        headers.insert(QString(line.left(colon)).toLower(), QString(line.mid(colon + 1)).trimmed());
+        headers.insert(QString(line.mid(0, colon)).toLower(), QString(line.mid(colon + 1)).trimmed());
     }
 
     int contentLength = headers.value("content-length").toInt();
