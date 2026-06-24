@@ -43,17 +43,24 @@ private:
     QJsonArray m_tools, m_resources;
     QList <PendingRequest> m_pending;
 
+
+
+
+
     Device findDevice(const QString &search);
     quint8 getEndpointId(const QString &endpoint);
 
     void updatePropertyNames(const Device &device);
     QJsonObject deviceInfo(const Device &device);
 
-    void httpResponse(QTcpSocket *socket, quint16 code, const QByteArray &body = QByteArray(), const QString &contentType = "application/json");
+    void httpResponse(QTcpSocket *socket, quint16 code, const QByteArray &response = QByteArray());
     void rpcResponse(QTcpSocket *socket, const QJsonValue &id, const QJsonValue &result);
     void rpcError(QTcpSocket *socket, const QJsonValue &id, int code, const QString &message);
+    QJsonObject toolResult(const QString &text, bool error = false);
 
-    QJsonObject toolResult(const QString &text, bool isError = false);
+
+
+
 
     void handleRpc(QTcpSocket *socket, const QJsonObject &request);
     void handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, const QString &name, const QJsonObject &arguments);
@@ -71,6 +78,11 @@ private slots:
 
     void socketConnected(void);
     void socketDisconnected(void);
+
+
+
+
+
     void readyRead(void);
 
     void checkPending(void);

@@ -110,12 +110,7 @@ QJsonObject Controller::deviceInfo(const Device &device)
     return json;
 }
 
-
-
-
-
-// not reviewed
-void Controller::httpResponse(QTcpSocket *socket, quint16 code, const QByteArray &body, const QString &contentType)
+void Controller::httpResponse(QTcpSocket *socket, quint16 code, const QByteArray &response)
 {
     QByteArray data;
 
@@ -125,9 +120,7 @@ void Controller::httpResponse(QTcpSocket *socket, quint16 code, const QByteArray
         case 202: data = "HTTP/1.1 202 Accepted"; break;
         case 400: data = "HTTP/1.1 400 Bad Request"; break;
         case 401: data = "HTTP/1.1 401 Unauthorized"; break;
-        case 404: data = "HTTP/1.1 404 Not Found"; break;
         case 405: data = "HTTP/1.1 405 Method Not Allowed"; break;
-        case 500: data = "HTTP/1.1 500 Internal Server Error"; break;
         default:  data = QString("HTTP/1.1 %1").arg(code).toUtf8(); break;
     }
 
@@ -135,44 +128,31 @@ void Controller::httpResponse(QTcpSocket *socket, quint16 code, const QByteArray
     data.append("\r\nAccess-Control-Allow-Methods: POST, OPTIONS");
     data.append("\r\nAccess-Control-Allow-Headers: Content-Type, Authorization, Mcp-Session-Id");
     data.append("\r\nAccess-Control-Expose-Headers: Mcp-Session-Id");
+
+    if (!response.isEmpty())
+        data.append("\r\nContent-Type: application/json");
+
+    data.append(QString("\r\nContent-Length: %1").arg(response.length()).toUtf8());
     data.append(QString("\r\nMcp-Session-Id: %1").arg(m_sessionId).toUtf8());
 
-    if (!body.isEmpty())
-    {
-        data.append(QString("\r\nContent-Type: %1").arg(contentType).toUtf8());
-        data.append(QString("\r\nContent-Length: %1").arg(body.length()).toUtf8());
-    }
-    else
-        data.append("\r\nContent-Length: 0");
-
-    socket->write(data.append("\r\nConnection: close\r\n\r\n").append(body));
-    socket->flush();
-    socket->disconnectFromHost();
+    socket->write(data.append("\r\nConnection: close\r\n\r\n").append(response));
+    socket->close();
 }
 
-// not reviewed
 void Controller::rpcResponse(QTcpSocket *socket, const QJsonValue &id, const QJsonValue &result)
 {
-    QJsonObject response = {{"jsonrpc", "2.0"}, {"id", id}, {"result", result}};
-    httpResponse(socket, 200, QJsonDocument(response).toJson(QJsonDocument::Compact));
+    httpResponse(socket, 200, QJsonDocument({{"jsonrpc", "2.0"}, {"id", id}, {"result", result}}).toJson(QJsonDocument::Compact));
 }
 
-// not reviewed
 void Controller::rpcError(QTcpSocket *socket, const QJsonValue &id, int code, const QString &message)
 {
-    QJsonObject response = {{"jsonrpc", "2.0"}, {"id", id}, {"error", QJsonObject {{"code", code}, {"message", message}}}};
-    httpResponse(socket, 200, QJsonDocument(response).toJson(QJsonDocument::Compact));
+    httpResponse(socket, 200, QJsonDocument({{"jsonrpc", "2.0"}, {"id", id}, {"error", QJsonObject {{"code", code}, {"message", message}}}}).toJson(QJsonDocument::Compact));
 }
 
-// not reviewed
-QJsonObject Controller::toolResult(const QString &text, bool isError)
+QJsonObject Controller::toolResult(const QString &text, bool error)
 {
-    return QJsonObject {{"content", QJsonArray {QJsonObject {{"type", "text"}, {"text", text}}}}, {"isError", isError}};
+    return QJsonObject {{"content", QJsonArray {QJsonObject {{"type", "text"}, {"text", text}}}}, {"isError", error}};
 }
-
-
-
-
 
 void Controller::mqttConnected(void)
 {
