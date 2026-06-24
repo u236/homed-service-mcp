@@ -6,12 +6,13 @@
 
 namespace Expose
 {
-    // Build an LLM-friendly view of a device's exposes:
-    //   { endpoint_key: { properties: { sub_key: {value?, enum?, min?, max?, unit?, action?, ...}, ... } } }
-    // For composite items (light/cover/thermostat/...) the bare item is expanded into its sub-keys
-    // via an internal table; for unknown items the sub-key equals the item name. Current values
-    // come from the device's fd/ cache.
-    QJsonObject expand(const Device &device);
+    // Replaces device->endpoints() with what was published in `exposes` (the raw payload of
+    // an expose/<service>/<topic> message). Composite items (light/cover/thermostat/...) are
+    // expanded into their writable sub-keys; simple items follow their `options.type`.
+    void parse(const Device &device, const QJsonObject &exposes);
+
+    // Serializes device->endpoints() back to JSON for get_device / list_devices answers.
+    QJsonObject serialize(const Device &device);
 }
 
 #endif

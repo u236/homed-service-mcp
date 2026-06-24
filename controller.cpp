@@ -152,7 +152,7 @@ QJsonObject Controller::describeDevice(const Device &device, bool full)
 
     if (full)
     {
-        QJsonObject exposes = Expose::expand(device);
+        QJsonObject exposes = Expose::serialize(device);
 
         if (!exposes.isEmpty())
             json.insert("exposes", exposes);
@@ -317,9 +317,6 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
             {
                 mqttSubscribe(mqttTopic("device/%1").arg(topic));
                 mqttSubscribe(mqttTopic("expose/%1").arg(topic));
-                mqttSubscribe(mqttTopic("fd/%1").arg(topic));
-                mqttSubscribe(mqttTopic("fd/%1/#").arg(topic));
-                mqttPublish(mqttTopic("command/%1").arg(service), {{"action", "getProperties"}, {"device", names ? name : id}, {"service", "mcp"}});
             }
         }
 
@@ -336,35 +333,40 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
     }
     else if (subTopic.startsWith("expose/"))
     {
-        const Device &device = findDevice(subTopic.mid(subTopic.indexOf('/') + 1));
+        QString rest = subTopic.mid(subTopic.indexOf('/') + 1);
+        const Device &device = findDevice(rest);
 
         if (device.isNull())
             return;
 
-        device->setExposes(json);
+        Expose::parse(device, json);
+
+        mqttSubscribe(mqttTopic("fd/%1").arg(device->topic()));
+        mqttSubscribe(mqttTopic("fd/%1/#").arg(device->topic()));
+        mqttPublish(mqttTopic("command/%1").arg(device->service()), {{"action", "getProperties"}, {"device", device->topic().mid(device->service().length() + 1)}, {"service", "mcp"}});
     }
     else if (subTopic.startsWith("fd/"))
     {
         QString endpoint = subTopic.mid(subTopic.indexOf('/') + 1);
         const Device &device = findDevice(endpoint);
 
-        if (!device.isNull())
+        if (device.isNull())
+            return;
+
+        QList <QString> endpointList = endpoint.split('/');
+        quint8 endpointId = endpointList.count() > 2 ? static_cast <quint8> (endpointList.last().toInt()) : 0;
+
+        if (!device->endpoints().contains(endpointId))
+            return;
+
+        const Endpoint &target = device->endpoints().value(endpointId);
+
+        for (auto it = json.begin(); it != json.end(); it++)
         {
-            QMap <QString, QVariant> properties = json.toVariantMap();
-            QList <QString> propertyList = {"action", "event", "scene"}, endpointList = endpoint.split('/');
+            if (!target->properties().contains(it.key()))
+                continue;
 
-            for (auto it = properties.begin(); it != properties.end(); NULL)
-            {
-                if (propertyList.contains(it.key().split('_').value(0)))
-                {
-                    it = properties.erase(it);
-                    continue;
-                }
-
-                it++;
-            }
-
-            device->properties().insert(endpointList.count() > 2 ? static_cast <quint8> (endpointList.last().toInt()) : 0, properties);
+            target->properties().value(it.key())->setValue(it.value().toVariant());
         }
     }
 }
@@ -647,14 +649,13 @@ void Controller::handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, co
                 continue;
             }
 
-            QJsonObject exposes = Expose::expand(device);
-            QString endpointKey = endpoint ? QString::number(endpoint) : QString("common");
-            QJsonObject endpointProperties = exposes.value(endpointKey).toObject().value("properties").toObject();
+            const Endpoint &target = device->endpoints().value(static_cast <quint8> (endpoint));
             QStringList writableSubKeys, invalidSubKeys;
 
-            for (auto e = endpointProperties.begin(); e != endpointProperties.end(); e++)
-                if (e.value().toObject().value("writable").toBool())
-                    writableSubKeys.append(e.key());
+            if (!target.isNull())
+                for (auto e = target->properties().begin(); e != target->properties().end(); e++)
+                    if (e.value()->writable())
+                        writableSubKeys.append(e.key());
 
             for (auto jt = properties.begin(); jt != properties.end(); jt++)
                 if (!writableSubKeys.contains(jt.key()))

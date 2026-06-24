@@ -1,13 +1,33 @@
 #ifndef DEVICE_H
 #define DEVICE_H
 
-#include <QJsonObject>
 #include <QMap>
 #include <QSharedPointer>
-#include <QVariantMap>
+#include <QString>
+#include "property.h"
+
+class EndpointObject;
+typedef QSharedPointer <EndpointObject> Endpoint;
 
 class DeviceObject;
 typedef QSharedPointer <DeviceObject> Device;
+
+class EndpointObject
+{
+
+public:
+
+    EndpointObject(quint8 id) : m_id(id) {}
+
+    inline quint8 id(void) { return m_id; }
+    inline QMap <QString, Property> &properties(void) { return m_properties; }
+
+private:
+
+    quint8 m_id;
+    QMap <QString, Property> m_properties;
+
+};
 
 class DeviceObject
 {
@@ -32,18 +52,14 @@ public:
     inline bool available(void) { return m_available; }
     inline void setAvailable(bool value) { m_available = value; }
 
-    inline QJsonObject exposes(void) { return m_exposes; }
-    inline void setExposes(const QJsonObject &value) { m_exposes = value; }
-
-    inline QMap <quint8, QVariantMap> &properties(void) { return m_properties; }
+    inline QMap <quint8, Endpoint> &endpoints(void) { return m_endpoints; }
 
 private:
 
     QString m_key, m_topic, m_name;
     bool m_available;
 
-    QJsonObject m_exposes;
-    QMap <quint8, QVariantMap> m_properties;
+    QMap <quint8, Endpoint> m_endpoints;
 
 };
 
