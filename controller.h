@@ -6,6 +6,7 @@
 #define MCP_PROTOCOL_VERSION    "2025-06-18"
 #define MCP_REQUEST_TIMEOUT     5000
 
+#include <QJsonArray>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include "device.h"
@@ -32,13 +33,14 @@ private:
     QTcpServer *m_tcpServer;
     QTimer *m_timer;
 
-    QString m_token;
+    QString m_token, m_sessionId;
     bool m_readOnly, m_debug;
 
     QList <QTcpSocket*> m_sockets;
     QMap <QString, Device> m_devices;
     QList <QString> m_services;
     QJsonObject m_propertyNames;
+    QJsonArray m_tools, m_resources;
     QList <PendingRequest> m_pending;
 
     void httpResponse(QTcpSocket *socket, quint16 code, const QByteArray &body = QByteArray(), const QString &contentType = "application/json");

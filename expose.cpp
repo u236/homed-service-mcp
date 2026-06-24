@@ -13,7 +13,7 @@ namespace Expose
     static void addAction(QJsonObject &properties, const QString &subKey, QJsonObject schema, const QJsonObject &subKeyOptions)
     {
         mergeOptions(schema, subKeyOptions);
-        schema.insert("action", true);
+        schema.insert("writable", true);
         properties.insert(subKey, schema);
     }
 

@@ -1,15 +1,44 @@
 #include <QDateTime>
+#include <QFile>
 #include <QUuid>
 #include "controller.h"
 #include "expose.h"
 #include "logger.h"
 #include "parser.h"
 
+static QJsonArray loadJsonArray(const QString &path)
+{
+    QFile file(path);
+
+    if (!file.open(QFile::ReadOnly))
+    {
+        logWarning << "File" << path.toUtf8().constData() << "open error:" << file.errorString().toUtf8().constData();
+        return QJsonArray();
+    }
+
+    QJsonParseError error;
+    QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &error);
+
+    file.close();
+
+    if (error.error != QJsonParseError::NoError || !document.isArray())
+    {
+        logWarning << "File" << path.toUtf8().constData() << "parse error:" << error.errorString().toUtf8().constData();
+        return QJsonArray();
+    }
+
+    return document.array();
+}
+
 Controller::Controller(const QString &configFile) : HOMEd(SERVICE_VERSION, configFile), m_tcpServer(new QTcpServer(this)), m_timer(new QTimer(this))
 {
     m_token = getConfig()->value("server/token").toString();
+    m_sessionId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     m_readOnly = getConfig()->value("server/readOnly", true).toBool();
     m_debug = getConfig()->value("server/debug", false).toBool();
+
+    m_tools = loadJsonArray(getConfig()->value("server/tools", "/usr/share/homed-mcp/tools.json").toString());
+    m_resources = loadJsonArray(getConfig()->value("server/resources", "/usr/share/homed-mcp/resources.json").toString());
 
     connect(m_tcpServer, &QTcpServer::newConnection, this, &Controller::socketConnected);
     connect(m_timer, &QTimer::timeout, this, &Controller::checkPending);
@@ -43,7 +72,9 @@ void Controller::httpResponse(QTcpSocket *socket, quint16 code, const QByteArray
 
     data.append("\r\nAccess-Control-Allow-Origin: *");
     data.append("\r\nAccess-Control-Allow-Methods: POST, OPTIONS");
-    data.append("\r\nAccess-Control-Allow-Headers: Content-Type, Authorization");
+    data.append("\r\nAccess-Control-Allow-Headers: Content-Type, Authorization, Mcp-Session-Id");
+    data.append("\r\nAccess-Control-Expose-Headers: Mcp-Session-Id");
+    data.append(QString("\r\nMcp-Session-Id: %1").arg(m_sessionId).toUtf8());
 
     if (!body.isEmpty())
     {
@@ -425,11 +456,13 @@ void Controller::readyRead(void)
         return;
     }
 
-    if (method != "POST" || url != "/mcp")
+    if (method != "POST")
     {
-        httpResponse(socket, url != "/mcp" ? 404 : 405);
+        httpResponse(socket, 405);
         return;
     }
+
+    Q_UNUSED(url)
 
     if (!m_token.isEmpty())
     {
@@ -481,7 +514,7 @@ void Controller::handleRpc(QTcpSocket *socket, const QJsonObject &request)
                 {"name", "homed-mcp"},
                 {"version", SERVICE_VERSION}
             }},
-            {"instructions", "Access HOMEd smart-home devices, automations and historical data over MQTT."}
+            {"instructions", "Access HOMEd smart-home devices and historical data over MQTT."}
         });
         return;
     }
@@ -521,107 +554,25 @@ void Controller::handleRpc(QTcpSocket *socket, const QJsonObject &request)
 
 QJsonArray Controller::toolsList(void)
 {
-    QJsonArray tools;
+    QJsonArray result;
 
-    tools.append(QJsonObject {
-        {"name", "list_devices"},
-        {"description", "List all smart-home devices known to HOMEd. Each entry has the device `name` plus an optional `named_properties` array — user-defined names for individual sub-properties (set in homed-web UI). For multi-channel devices the device `name` may be generic (e.g. \"Реле освещения\"), while `named_properties` tells which channel is \"Мастерская\", \"Кухня\", etc. To find a device by a human phrase, call this with no filters and search the returned array yourself — it is small enough."},
-        {"inputSchema", QJsonObject {
-            {"type", "object"},
-            {"properties", QJsonObject {
-                {"service", QJsonObject {{"type", "string"}, {"description", "Optional filter by HOMEd service topic (e.g. 'zigbee')."}}},
-                {"type", QJsonObject {{"type", "string"}, {"description", "Optional filter by device type."}}},
-                {"includeState", QJsonObject {{"type", "boolean"}, {"description", "Include last known property values."}}}
-            }}
-        }}
-    });
-
-    tools.append(QJsonObject {
-        {"name", "get_device"},
-        {"description", "Return full information about a single device: exposes (capabilities), options and last known property values. Pass either the canonical key (\"<type>/<id>\"), the device name, or the device id."},
-        {"inputSchema", QJsonObject {
-            {"type", "object"},
-            {"required", QJsonArray {"device"}},
-            {"properties", QJsonObject {
-                {"device", QJsonObject {{"type", "string"}, {"description", "Device key, id or name."}}}
-            }}
-        }}
-    });
-
-    if (!m_readOnly)
+    for (auto it = m_tools.begin(); it != m_tools.end(); it++)
     {
-        tools.append(QJsonObject {
-            {"name", "set_properties"},
-            {"description",
-                "Publish property updates to HOMEd devices in a single batch call. Always prefer one call with many operations to many sequential calls.\n"
-                "\n"
-                "One operation targets ONE (device, endpoint) pair. To know what you can write, call get_device (or list_devices with includeState=true) and inspect `exposes.<endpoint>.properties`: every entry with `action: true` is writable, the key is the exact sub-key you put under `properties`, and `enum`/`min`/`max`/`unit`/`note` describe the accepted value. `endpoint` is the numeric exposes key — omit it for `exposes.common` (also when sub-keys carry a `_N` suffix). Group several sub-keys of the same (device, endpoint) into one operation.\n"
-                "\n"
-                "If you matched the device via `named_properties`, its `endpoint` and `property` are already the values you need.\n"
-                "\n"
-                "Operations are processed independently — failure on one does not abort the others.\n"},
-            {"inputSchema", QJsonObject {
-                {"type", "object"},
-                {"required", QJsonArray {"operations"}},
-                {"properties", QJsonObject {
-                    {"operations", QJsonObject {
-                        {"type", "array"},
-                        {"minItems", 1},
-                        {"description", "Array of independent updates. Each item targets ONE (device, endpoint) pair and may carry multiple sub-keys."},
-                        {"items", QJsonObject {
-                            {"type", "object"},
-                            {"required", QJsonArray {"device", "properties"}},
-                            {"properties", QJsonObject {
-                                {"device", QJsonObject {{"type", "string"}, {"description", "Device key, id or name."}}},
-                                {"endpoint", QJsonObject {{"type", "integer"}, {"description", "Numeric endpoint id. Set when the items live under exposes[\"<N>\"]. Do NOT set when items are in exposes.common."}}},
-                                {"properties", QJsonObject {
-                                    {"type", "object"},
-                                    {"minProperties", 1},
-                                    {"description", "Map of sub-key → target value, all written to the same td/ topic in ONE message. Keys are bare (e.g. \"status\", \"level\") when `endpoint` is set OR the device is single-endpoint; they carry a _N suffix (e.g. \"status_5\") only when the matching item is in common with a _N suffix and `endpoint` is NOT set. Values: boolean for toggle/button, string for status/select/systemMode/etc., number for level/position/targetTemperature, array [r,g,b] for color."},
-                                    {"additionalProperties", true}
-                                }}
-                            }}
-                        }}
-                    }}
-                }}
-            }}
-        });
+        QJsonObject tool = it->toObject();
+
+        if (m_readOnly && tool.value("requiresWrite").toBool())
+            continue;
+
+        tool.remove("requiresWrite");
+        result.append(tool);
     }
 
-    tools.append(QJsonObject {
-        {"name", "query_history"},
-        {"description", "Query recorded values for a (device, property) pair from homed-recorder. Returns timestamps and values (or hourly aggregates for long ranges)."},
-        {"inputSchema", QJsonObject {
-            {"type", "object"},
-            {"required", QJsonArray {"device", "property", "start", "end"}},
-            {"properties", QJsonObject {
-                {"device", QJsonObject {{"type", "string"}, {"description", "Device key or name."}}},
-                {"property", QJsonObject {{"type", "string"}, {"description", "Property name."}}},
-                {"start", QJsonObject {{"type", "integer"}, {"description", "Range start, Unix timestamp in milliseconds."}}},
-                {"end", QJsonObject {{"type", "integer"}, {"description", "Range end, Unix timestamp in milliseconds."}}}
-            }}
-        }}
-    });
-
-    return tools;
+    return result;
 }
 
 QJsonArray Controller::resourcesList(void)
 {
-    return QJsonArray {
-        QJsonObject {
-            {"uri", "homed://devices"},
-            {"name", "devices"},
-            {"title", "All HOMEd devices"},
-            {"description", "Snapshot of every known device with exposes, options and current state."}
-        },
-        QJsonObject {
-            {"uri", "homed://services"},
-            {"name", "services"},
-            {"title", "Online HOMEd services"},
-            {"description", "List of currently online HOMEd service topics (e.g. \"zigbee/a\", \"modbus\", \"recorder\")."}
-        }
-    };
+    return m_resources;
 }
 
 void Controller::handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, const QString &name, const QJsonObject &arguments)
@@ -631,7 +582,6 @@ void Controller::handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, co
     if (name == "list_devices")
     {
         QString service = arguments.value("service").toString(), type = arguments.value("type").toString();
-        bool includeState = arguments.value("includeState").toBool();
         QJsonArray result;
 
         for (auto it = m_devices.begin(); it != m_devices.end(); it++)
@@ -642,7 +592,7 @@ void Controller::handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, co
             if (!type.isEmpty() && it.value()->type() != type)
                 continue;
 
-            result.append(describeDevice(it.value(), includeState));
+            result.append(describeDevice(it.value(), true));
         }
 
         rpcResponse(socket, rpcId, toolResult(QJsonDocument(result).toJson(QJsonDocument::Compact)));
@@ -693,6 +643,31 @@ void Controller::handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, co
             if (properties.isEmpty())
             {
                 results.append(QJsonObject {{"device", device->key()}, {"ok", false}, {"error", "properties is empty"}});
+                failed++;
+                continue;
+            }
+
+            QJsonObject exposes = Expose::expand(device);
+            QString endpointKey = endpoint ? QString::number(endpoint) : QString("common");
+            QJsonObject endpointProperties = exposes.value(endpointKey).toObject().value("properties").toObject();
+            QStringList writableSubKeys, invalidSubKeys;
+
+            for (auto e = endpointProperties.begin(); e != endpointProperties.end(); e++)
+                if (e.value().toObject().value("writable").toBool())
+                    writableSubKeys.append(e.key());
+
+            for (auto jt = properties.begin(); jt != properties.end(); jt++)
+                if (!writableSubKeys.contains(jt.key()))
+                    invalidSubKeys.append(jt.key());
+
+            if (!invalidSubKeys.isEmpty() && !writableSubKeys.isEmpty())
+            {
+                results.append(QJsonObject {
+                    {"device", device->key()},
+                    {"endpoint", endpoint ? QJsonValue(endpoint) : QJsonValue()},
+                    {"ok", false},
+                    {"error", QString("unknown sub-key(s): %1; writable sub-keys for this (device, endpoint) are: %2").arg(invalidSubKeys.join(", "), writableSubKeys.join(", "))}
+                });
                 failed++;
                 continue;
             }

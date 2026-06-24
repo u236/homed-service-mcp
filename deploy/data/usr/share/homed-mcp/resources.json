@@ -1,0 +1,14 @@
+[
+  {
+    "uri": "homed://devices",
+    "name": "devices",
+    "title": "All HOMEd devices",
+    "description": "Snapshot of every known device with exposes, options and current state."
+  },
+  {
+    "uri": "homed://services",
+    "name": "services",
+    "title": "Online HOMEd services",
+    "description": "List of currently online HOMEd service topics (e.g. \"zigbee/a\", \"modbus\", \"recorder\")."
+  }
+]

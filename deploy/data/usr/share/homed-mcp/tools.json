@@ -1,0 +1,107 @@
+[
+  {
+    "name": "list_devices",
+    "description": "List all smart-home devices known to HOMEd. Each entry has the device `name` plus an optional `named_properties` array — user-defined names for individual sub-properties (set in homed-web UI). For multi-channel devices the device `name` may be generic (e.g. \"Реле освещения\"), while `named_properties` tells which channel is \"Мастерская\", \"Кухня\", etc. To find a device by a human phrase, call this with no filters and search the returned array yourself — it is small enough.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string",
+          "description": "Optional filter by HOMEd service topic (e.g. 'zigbee')."
+        },
+        "type": {
+          "type": "string",
+          "description": "Optional filter by device type."
+        }
+      }
+    }
+  },
+  {
+    "name": "get_device",
+    "description": "Return full information about a single device: exposes (capabilities), options and last known property values. Pass either the canonical key (\"<type>/<id>\"), the device name, or the device id.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "device"
+      ],
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Device key, id or name."
+        }
+      }
+    }
+  },
+  {
+    "name": "set_properties",
+    "requiresWrite": true,
+    "description": "Publish property updates to HOMEd devices in a single batch call. Always prefer one call with many operations to many sequential calls.\n\nOne operation targets ONE (device, endpoint) pair. To know what you can write, call get_device (or list_devices with includeState=true) and inspect `exposes.<endpoint>.properties`: every entry with `writable: true` may be set, the key is the exact sub-key you put under `properties`, and `enum`/`min`/`max`/`unit`/`note` describe the accepted value. `endpoint` is the numeric exposes key — omit it for `exposes.common` (also when sub-keys carry a `_N` suffix). Group several sub-keys of the same (device, endpoint) into one operation.\n\nIf you matched the device via `named_properties`, its `endpoint` and `property` are already the values you need.\n\nOperations are processed independently — failure on one does not abort the others.\n",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "operations"
+      ],
+      "properties": {
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Array of independent updates. Each item targets ONE (device, endpoint) pair and may carry multiple sub-keys.",
+          "items": {
+            "type": "object",
+            "required": [
+              "device",
+              "properties"
+            ],
+            "properties": {
+              "device": {
+                "type": "string",
+                "description": "Device key, id or name."
+              },
+              "endpoint": {
+                "type": "integer",
+                "description": "Numeric endpoint id. Set when the items live under exposes[\"<N>\"]. Do NOT set when items are in exposes.common."
+              },
+              "properties": {
+                "type": "object",
+                "minProperties": 1,
+                "description": "Map of sub-key → target value, all written to the same td/ topic in ONE message. Keys are bare (e.g. \"status\", \"level\") when `endpoint` is set OR the device is single-endpoint; they carry a _N suffix (e.g. \"status_5\") only when the matching item is in common with a _N suffix and `endpoint` is NOT set. Values: boolean for toggle/button, string for status/select/systemMode/etc., number for level/position/targetTemperature, array [r,g,b] for color.",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "query_history",
+    "description": "Query recorded values for a (device, property) pair from homed-recorder. Returns timestamps and values (or hourly aggregates for long ranges).",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "device",
+        "property",
+        "start",
+        "end"
+      ],
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "Device key or name."
+        },
+        "property": {
+          "type": "string",
+          "description": "Property name."
+        },
+        "start": {
+          "type": "integer",
+          "description": "Range start, Unix timestamp in milliseconds."
+        },
+        "end": {
+          "type": "integer",
+          "description": "Range end, Unix timestamp in milliseconds."
+        }
+      }
+    }
+  }
+]
