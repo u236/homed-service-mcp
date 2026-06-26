@@ -1,12 +1,7 @@
 #include <QCryptographicHash>
-#include <QDateTime>
-#include <QFile>
-#include <QUuid>
 #include "controller.h"
-#include "expose.h"
 #include "logger.h"
 #include "parser.h"
-
 
 // not reviewed
 static QJsonArray loadJsonArray(const QString &path)
@@ -102,7 +97,7 @@ void Controller::updatePropertyNames(const Device &device)
 
 QJsonObject Controller::deviceInfo(const Device &device)
 {
-    QJsonObject json = {{"key", device->key()}, {"type", device->type()}, {"service", device->service()}, {"name", device->name()}, {"available", device->available()}}, properties = Expose::serialize(device);
+    QJsonObject json = {{"key", device->key()}, {"type", device->key().mid(0, device->key().indexOf('/'))}, {"service", device->topic().mid(0, device->topic().lastIndexOf('/'))}, {"name", device->name()}, {"available", device->available()}}, properties = device->serializeProperties();
 
     if (!properties.isEmpty())
         json.insert("properties", properties);
@@ -309,13 +304,13 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
         if (device.isNull() || device->hash() == hash)
             return;
 
-        Expose::parse(device, json); // TODO: refactor this
+        device->parseExposes(json);
         device->setHash(hash);
         updatePropertyNames(device);
 
         mqttSubscribe(mqttTopic("fd/%1").arg(device->topic()));
         mqttSubscribe(mqttTopic("fd/%1/#").arg(device->topic()));
-        mqttPublish(mqttTopic("command/%1").arg(device->service()), {{"action", "getProperties"}, {"device", device->topic().mid(device->service().length() + 1)}, {"service", "mcp"}});
+        mqttPublish(mqttTopic("command/%1").arg(device->topic().mid(0, device->topic().lastIndexOf('/'))), {{"action", "getProperties"}, {"device", device->key().mid(device->key().indexOf('/') + 1)}, {"service", "mcp"}});
     }
     else if (subTopic.startsWith("fd/"))
     {
@@ -560,10 +555,7 @@ void Controller::handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, co
 
         for (auto it = m_devices.begin(); it != m_devices.end(); it++)
         {
-            if (!service.isEmpty() && it.value()->service() != service)
-                continue;
-
-            if (!type.isEmpty() && it.value()->type() != type)
+            if (!service.isEmpty() && !it.value()->topic().startsWith(service))
                 continue;
 
             result.append(deviceInfo(it.value()));

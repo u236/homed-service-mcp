@@ -6,9 +6,7 @@
 #define MCP_PROTOCOL_VERSION    "2025-06-18"
 #define MCP_REQUEST_TIMEOUT     5000
 
-#include <QJsonArray>
 #include <QTcpServer>
-#include <QTcpSocket>
 #include "device.h"
 #include "homed.h"
 

@@ -3,14 +3,11 @@ include(../homed-common/homed-parser.pri)
 
 HEADERS += \
     controller.h \
-    device.h \
-    expose.h \
-    property.h
+    device.h
 
 SOURCES += \
     controller.cpp \
-    expose.cpp \
-    property.cpp
+    device.cpp
 
 DISTFILES += \
     deploy/data/usr/share/homed-mcp/resources.json \
