@@ -1,7 +1,7 @@
 [
   {
     "name": "list_devices",
-    "description": "List all smart-home devices known to HOMEd. Each entry has the device `name` and a `properties` map keyed by endpoint (\"common\" or a numeric id). Individual sub-properties may carry a `display_name` — user-defined human-readable name set in homed-web UI; for multi-channel devices the device `name` is often generic (e.g. \"Реле освещения\") and the channel name (e.g. \"Мастерская\") lives inside the relevant sub-property's `display_name`. To find a device by a human phrase, call this with no filters and scan both device `name` and `display_name`s of its sub-properties — the full list is small enough.",
+    "description": "List all smart-home devices known to HOMEd. Each entry has the device `name`, an optional user `note` (free-text annotation set in homed-web UI — often hints at location, purpose or other context; omitted when empty) and a `properties` map keyed by endpoint (\"common\" or a numeric id). Individual sub-properties may carry a `display_name` — user-defined human-readable name set in homed-web UI; for multi-channel devices the device `name` is often generic (e.g. \"Реле освещения\") and the channel name (e.g. \"Мастерская\") lives inside the relevant sub-property's `display_name`. To find a device by a human phrase, call this with no filters and scan the device `name`, its `note` and the `display_name`s of its sub-properties — the full list is small enough.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -18,7 +18,7 @@
   },
   {
     "name": "get_device",
-    "description": "Return full information about a single device: writable and readable properties with their current values and schema. Pass either the canonical key (\"<type>/<id>\") or the device name.",
+    "description": "Return full information about a single device: its `name`, optional user `note` (free-text annotation, omitted when empty) and writable/readable properties with their current values and schema. Pass either the canonical key (\"<type>/<id>\") or the device name.",
     "inputSchema": {
       "type": "object",
       "required": [

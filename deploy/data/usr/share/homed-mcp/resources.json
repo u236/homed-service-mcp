@@ -3,7 +3,7 @@
     "uri": "homed://devices",
     "name": "devices",
     "title": "All HOMEd devices",
-    "description": "Snapshot of every known device with exposes, options and current state."
+    "description": "Snapshot of every known device with its name, optional user note, exposes, options and current state."
   },
   {
     "uri": "homed://services",

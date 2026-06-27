@@ -81,8 +81,8 @@ class DeviceObject
 
 public:
 
-    DeviceObject(const QString &key, const QString &topic, const QString &name) :
-        m_key(key), m_topic(topic), m_name(name), m_available(false) {}
+    DeviceObject(const QString &key, const QString &topic, const QString &name, const QString &note) :
+        m_key(key), m_topic(topic), m_name(name), m_note(note), m_available(false) {}
 
     inline QString key(void) { return m_key; }
 
@@ -92,6 +92,9 @@ public:
 
     inline QString name(void) { return m_name; }
     inline void setName(const QString &value) { m_name = value; }
+
+    inline QString note(void) { return m_note; }
+    inline void setNote(const QString &value) { m_note = value; }
 
     inline QByteArray hash(void) { return m_hash; }
     inline void setHash(const QByteArray &value) { m_hash = value; }
@@ -106,7 +109,7 @@ public:
 
 private:
 
-    QString m_key, m_topic, m_name;
+    QString m_key, m_topic, m_name, m_note;
     QByteArray m_hash;
     bool m_available;
 

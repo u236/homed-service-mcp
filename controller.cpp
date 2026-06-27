@@ -99,6 +99,9 @@ QJsonObject Controller::deviceInfo(const Device &device)
 {
     QJsonObject json = {{"key", device->key()}, {"type", device->key().mid(0, device->key().indexOf('/'))}, {"service", device->topic().mid(0, device->topic().lastIndexOf('/'))}, {"name", device->name()}, {"available", device->available()}}, properties = device->serializeProperties();
 
+    if (!device->note().isEmpty())
+        json.insert("note", device->note());
+
     if (!properties.isEmpty())
         json.insert("properties", properties);
 
@@ -240,7 +243,7 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
         for (auto it = devices.begin(); it != devices.end(); it++)
         {
             QJsonObject item = it->toObject();
-            QString name = item.value("name").toString(), id = deviceId(item, type), key, topic;
+            QString name = item.value("name").toString(), note = item.value("note").toString(), id = deviceId(item, type), key, topic;
             bool check = false;
 
             if (type == "zigbee" && (item.value("removed").toBool() || !item.value("logicalType").toInt()))
@@ -271,10 +274,11 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
                 }
 
                 device->setName(name);
+                device->setNote(note);
             }
             else
             {
-                m_devices.insert(key, Device(new DeviceObject(key, topic, name)));
+                m_devices.insert(key, Device(new DeviceObject(key, topic, name, note)));
                 check = true;
             }
 
