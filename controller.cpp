@@ -76,13 +76,27 @@ quint8 Controller::getEndpointId(const QString &endpoint)
     return 0;
 }
 
-void Controller::updatePropertyNames(const Device &device)
+void Controller::updateProperties(const Device &device)
 {
-    QString prefix = device->key().append('/');
+    QString key = device->key().append('/');
+
+    for (auto it = m_recordedItems.begin(); it != m_recordedItems.end(); it++)
+    {
+        if (it->startsWith(key))
+        {
+            const Endpoint &endpoint = device->endpoints().value(getEndpointId(it->mid(0, it->lastIndexOf('/'))));
+            QString property = it->split('/').last();
+
+            if (endpoint.isNull() || !endpoint->properties().contains(property))
+                continue;
+
+            endpoint->properties().value(property)->setHistory(true);
+        }
+    }
 
     for (auto it = m_propertyNames.begin(); it != m_propertyNames.end(); it++)
     {
-        if (it.key().startsWith(prefix))
+        if (it.key().startsWith(key))
         {
             const Endpoint &endpoint = device->endpoints().value(getEndpointId(it.key().mid(0, it.key().lastIndexOf('/'))));
             QString property = it.key().split('/').last();
@@ -90,7 +104,7 @@ void Controller::updatePropertyNames(const Device &device)
             if (endpoint.isNull() || !endpoint->properties().contains(property))
                 continue;
 
-            endpoint->properties().value(property)->setDisplayName(it.value().toString());
+            endpoint->properties().value(property)->setDisplayName(it.value());
         }
     }
 }
@@ -224,15 +238,35 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
         QJsonArray devices = json.value("devices").toArray();
         bool names = json.value("names").toBool();
 
-        if (type == "web")
+        if (type == "recorder")
         {
-            QJsonObject items = json.value("names").toObject();
+            QJsonArray items = json.value("items").toArray();
+
+            m_recordedItems.clear();
 
             for (auto it = items.begin(); it != items.end(); it++)
-                m_propertyNames.insert(it.key(), it.value());
+            {
+                QJsonObject item = it->toObject();
+                m_recordedItems.append(QString("%1/%2").arg(item.value("endpoint").toString(), item.value("property").toString()));
+            }
 
             for (auto it = m_devices.begin(); it != m_devices.end(); it++)
-                updatePropertyNames(it.value());
+                updateProperties(it.value());
+
+            return;
+        }
+
+        if (type == "web")
+        {
+            QJsonObject names = json.value("names").toObject();
+
+            m_propertyNames.clear();
+
+            for (auto it = names.begin(); it != names.end(); it++)
+                m_propertyNames.insert(it.key(), it.value().toString());
+
+            for (auto it = m_devices.begin(); it != m_devices.end(); it++)
+                updateProperties(it.value());
 
             return;
         }
@@ -310,7 +344,7 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
 
         device->parseExposes(json);
         device->setHash(hash);
-        updatePropertyNames(device);
+        updateProperties(device);
 
         mqttSubscribe(mqttTopic("fd/%1").arg(device->topic()));
         mqttSubscribe(mqttTopic("fd/%1/#").arg(device->topic()));
@@ -618,7 +652,7 @@ void Controller::handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, co
             }
 
             const Endpoint &target = device->endpoints().value(static_cast <quint8> (endpoint));
-            QStringList writableSubKeys, invalidSubKeys;
+            QList <QString> writableSubKeys, invalidSubKeys;
 
             if (!target.isNull())
                 for (auto e = target->properties().begin(); e != target->properties().end(); e++)
@@ -677,6 +711,16 @@ void Controller::handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, co
         }
 
         QString property = arguments.value("property").toString();
+        int endpoint = arguments.value("endpoint").toInt();
+        const Endpoint &target = device->endpoints().value(static_cast <quint8> (endpoint));
+
+        if (target.isNull() || !target->properties().contains(property) || !target->properties().value(property)->history())
+        {
+            rpcResponse(socket, rpcId, toolResult(QString("No history is recorded for property \"%1\" of device \"%2\"; only properties marked with \"history\" in get_device can be queried").arg(property, device->key()), true));
+            return;
+        }
+
+        QString endpointKey = endpoint ? QString("%1/%2").arg(device->key()).arg(endpoint) : device->key();
         QString correlationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
         m_pending.append({socket, rpcId, correlationId, QDateTime::currentMSecsSinceEpoch() + MCP_REQUEST_TIMEOUT});
@@ -684,7 +728,7 @@ void Controller::handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, co
         mqttPublish(mqttTopic("command/recorder"), QJsonObject {
             {"action", "getData"},
             {"id", correlationId},
-            {"endpoint", device->key()},
+            {"endpoint", endpointKey},
             {"property", property},
             {"start", arguments.value("start")},
             {"end", arguments.value("end")}

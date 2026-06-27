@@ -34,13 +34,16 @@ private:
     QString m_token, m_sessionId;
     bool m_readOnly, m_debug;
 
-    QList <QTcpSocket*> m_sockets;
-    QMap <QString, Device> m_devices;
-    QList <QString> m_services;
-    QJsonObject m_propertyNames;
     QJsonArray m_tools, m_resources;
-    QList <PendingRequest> m_pending;
 
+    QList <QString> m_services;
+    QMap <QString, Device> m_devices;
+
+    QList <QString> m_recordedItems;
+    QMap <QString, QString> m_propertyNames;
+
+    QList <QTcpSocket*> m_sockets;
+    QList <PendingRequest> m_pending;
 
 
 
@@ -48,7 +51,7 @@ private:
     Device findDevice(const QString &search);
     quint8 getEndpointId(const QString &endpoint);
 
-    void updatePropertyNames(const Device &device);
+    void updateProperties(const Device &device);
     QJsonObject deviceInfo(const Device &device);
 
     void httpResponse(QTcpSocket *socket, quint16 code, const QByteArray &response = QByteArray());

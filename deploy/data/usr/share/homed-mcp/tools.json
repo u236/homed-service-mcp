@@ -75,7 +75,7 @@
   },
   {
     "name": "query_history",
-    "description": "Query recorded values for a (device, property) pair from homed-recorder. Returns timestamps and values (or hourly aggregates for long ranges).",
+    "description": "Query recorded values for a (device, endpoint, property) triple from homed-recorder. Returns timestamps and values (or hourly aggregates for long ranges). Only properties that carry `history: true` in get_device/list_devices are recorded — querying any other property returns an error.",
     "inputSchema": {
       "type": "object",
       "required": [
@@ -89,9 +89,13 @@
           "type": "string",
           "description": "Device key or name."
         },
+        "endpoint": {
+          "type": "integer",
+          "description": "Numeric endpoint id. Set when the property lives under properties[\"<N>\"]. Do NOT set when it lives in properties.common."
+        },
         "property": {
           "type": "string",
-          "description": "Property name."
+          "description": "Property sub-key, exactly as it appears under properties.<endpoint> in get_device (must have `history: true`)."
         },
         "start": {
           "type": "integer",

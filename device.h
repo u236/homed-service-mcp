@@ -18,7 +18,7 @@ class PropertyObject
 
 public:
 
-    PropertyObject(const QString &name) : m_name(name), m_writable(false) {}
+    PropertyObject(const QString &name) : m_name(name), m_writable(false), m_history(false) {}
 
     inline QString name(void) { return m_name; }
 
@@ -43,13 +43,16 @@ public:
     inline bool writable(void) { return m_writable; }
     inline void setWritable(bool value) { m_writable = value; }
 
+    inline bool history(void) { return m_history; }
+    inline void setHistory(bool value) { m_history = value; }
+
     inline QList <QString> &enumValues(void) { return m_enumValues; }
 
 private:
 
     QString m_name, m_displayName, m_unit, m_note;
     QVariant m_min, m_max, m_value;
-    bool m_writable;
+    bool m_writable, m_history;
 
     QList <QString> m_enumValues;
 

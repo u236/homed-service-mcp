@@ -242,6 +242,9 @@ QJsonObject DeviceObject::serializeProperties(void)
             if (property->writable())
                 item.insert("writable", true);
 
+            if (property->history())
+                item.insert("history", true);
+
             if (!property->enumValues().isEmpty())
                 item.insert("enum", QJsonArray::fromStringList(property->enumValues()));
 
