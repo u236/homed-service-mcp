@@ -74,7 +74,7 @@
   },
   {
     "name": "query_history",
-    "description": "Query recorded values for a (device, endpoint, property) triple from homed-recorder. Returns timestamps and values (or hourly aggregates for long ranges). Only properties that carry `history: true` in get_device/list_devices are recorded — querying any other property returns an error.",
+    "description": "Query recorded values for a (device, endpoint, property) triple from homed-recorder. Only properties that carry `history: true` in get_device/list_devices are recorded — querying any other property returns an error. The response holds parallel arrays: `timestamp` (Unix timestamps in MILLISECONDS) plus `value` for raw samples, or — for long ranges — `timestamp` with hourly `avg`/`min`/`max` aggregates instead of `value`.",
     "inputSchema": {
       "type": "object",
       "required": [
@@ -98,11 +98,11 @@
         },
         "start": {
           "type": "integer",
-          "description": "Range start, Unix timestamp in milliseconds."
+          "description": "Range start, Unix timestamp in MILLISECONDS. Work out the plain Unix time in seconds for the calendar date/time you want, then multiply by 1000 (e.g. 2026-06-22 00:00 UTC = 1782086400 s = 1782086400000)."
         },
         "end": {
           "type": "integer",
-          "description": "Range end, Unix timestamp in milliseconds."
+          "description": "Range end, Unix timestamp in MILLISECONDS (Unix seconds × 1000). Pass 0 for \"up to now\"."
         }
       }
     }
