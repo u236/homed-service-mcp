@@ -28,11 +28,15 @@ static QJsonArray loadJsonArray(const QString &path)
     return document.array();
 }
 
-// not reviewed
+
+
+
+
 Controller::Controller(const QString &configFile) : HOMEd(SERVICE_VERSION, configFile), m_tcpServer(new QTcpServer(this)), m_timer(new QTimer(this))
 {
-    m_token = getConfig()->value("server/token").toString();
     m_sessionId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+
+    m_token = getConfig()->value("server/token").toString();
     m_readOnly = getConfig()->value("server/readOnly", true).toBool();
     m_debug = getConfig()->value("server/debug", false).toBool();
 
@@ -42,20 +46,29 @@ Controller::Controller(const QString &configFile) : HOMEd(SERVICE_VERSION, confi
     connect(m_tcpServer, &QTcpServer::newConnection, this, &Controller::socketConnected);
     connect(m_timer, &QTimer::timeout, this, &Controller::checkPending);
 
-    if (m_token.isEmpty())
-        logWarning << "Authentication token is empty, server is open!";
-
     if (!m_tcpServer->listen(QHostAddress(getConfig()->value("server/address", "0.0.0.0").toString()), static_cast <quint16> (getConfig()->value("server/port", 8086).toInt())))
-        logWarning << "TCP server listen failed:" << m_tcpServer->errorString();
-    else
-        logInfo << "MCP server listening on" << m_tcpServer->serverAddress().toString().append(':').append(QString::number(m_tcpServer->serverPort())).toUtf8().constData() << (m_readOnly ? "(read-only)" : "(read-write)");
+    {
+        logWarning << "Failed to start server, error:" << m_tcpServer->errorString();
+        return;
+    }
+
+    if (m_token.isEmpty())
+        logWarning << "Authentication token is empty, server is open";
 
     m_timer->start(1000);
+
+    if (!m_readOnly)
+        return;
+
+    for (auto it = m_tools.begin(); it != m_tools.end(); it++)
+    {
+        if (it->toObject().value("name").toString() != "set_properties")
+            continue;
+
+        m_tools.erase(it);
+        break;
+    }
 }
-
-
-
-
 
 Device Controller::findDevice(const QString &search)
 {
@@ -531,7 +544,7 @@ void Controller::handleRpc(QTcpSocket *socket, const QJsonObject &request)
 
     if (rpcMethod == "tools/list")
     {
-        rpcResponse(socket, rpcId, QJsonObject {{"tools", toolsList()}});
+        rpcResponse(socket, rpcId, QJsonObject {{"tools", m_tools}});
         return;
     }
 
@@ -543,7 +556,7 @@ void Controller::handleRpc(QTcpSocket *socket, const QJsonObject &request)
 
     if (rpcMethod == "resources/list")
     {
-        rpcResponse(socket, rpcId, QJsonObject {{"resources", resourcesList()}});
+        rpcResponse(socket, rpcId, QJsonObject {{"resources", m_resources}});
         return;
     }
 
@@ -554,31 +567,6 @@ void Controller::handleRpc(QTcpSocket *socket, const QJsonObject &request)
     }
 
     rpcError(socket, rpcId, -32601, QString("Method not found: %1").arg(rpcMethod));
-}
-
-// not reviewed
-QJsonArray Controller::toolsList(void)
-{
-    QJsonArray result;
-
-    for (auto it = m_tools.begin(); it != m_tools.end(); it++)
-    {
-        QJsonObject tool = it->toObject();
-
-        if (m_readOnly && tool.value("requiresWrite").toBool())
-            continue;
-
-        tool.remove("requiresWrite");
-        result.append(tool);
-    }
-
-    return result;
-}
-
-// not reviewed
-QJsonArray Controller::resourcesList(void)
-{
-    return m_resources;
 }
 
 // not reviewed

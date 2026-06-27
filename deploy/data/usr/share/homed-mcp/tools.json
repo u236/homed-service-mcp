@@ -34,7 +34,6 @@
   },
   {
     "name": "set_properties",
-    "requiresWrite": true,
     "description": "Publish property updates to HOMEd devices in a single batch call. Always prefer one call with many operations to many sequential calls.\n\nOne operation targets ONE (device, endpoint) pair. To know what you can write, call get_device (or list_devices) and inspect `properties.<endpoint>`: every entry with `writable: true` may be set, the key is the exact sub-key you put under `properties`, and `enum`/`min`/`max`/`unit`/`note` describe the accepted value. `endpoint` is the numeric key — omit it for `properties.common` (also when sub-keys carry a `_N` suffix). Group several sub-keys of the same (device, endpoint) into one operation.\n\nOperations are processed independently — failure on one does not abort the others.\n",
     "inputSchema": {
       "type": "object",

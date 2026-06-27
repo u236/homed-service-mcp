@@ -31,7 +31,7 @@ private:
     QTcpServer *m_tcpServer;
     QTimer *m_timer;
 
-    QString m_token, m_sessionId;
+    QString m_sessionId, m_token;
     bool m_readOnly, m_debug;
 
     QJsonArray m_tools, m_resources;
@@ -67,8 +67,6 @@ private:
     void handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, const QString &name, const QJsonObject &arguments);
     void handleResourcesRead(QTcpSocket *socket, const QJsonValue &rpcId, const QString &uri);
 
-    QJsonArray toolsList(void);
-    QJsonArray resourcesList(void);
 
     void completeHistoryRequest(const QString &correlationId, const QJsonObject &payload);
 
