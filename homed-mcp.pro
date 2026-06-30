@@ -10,6 +10,7 @@ SOURCES += \
     device.cpp
 
 DISTFILES += \
+    deploy/data/usr/share/homed-mcp/initialize.json \
     deploy/data/usr/share/homed-mcp/resources.json \
     deploy/data/usr/share/homed-mcp/tools.json
 

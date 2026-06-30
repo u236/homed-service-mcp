@@ -5,13 +5,19 @@
 
 Controller::Controller(const QString &configFile) : HOMEd(SERVICE_VERSION, configFile), m_tcpServer(new QTcpServer(this)), m_timer(new QTimer(this))
 {
-    QFile resources(getConfig()->value("server/resources", basePath().append("share/homed-mcp/resources.json")).toString()), tools(getConfig()->value("server/tools", basePath().append("share/homed-mcp/tools.json")).toString());
+    QFile initialize(getConfig()->value("server/initialize", basePath().append("share/homed-mcp/initialize.json")).toString()), resources(getConfig()->value("server/resources", basePath().append("share/homed-mcp/resources.json")).toString()), tools(getConfig()->value("server/tools", basePath().append("share/homed-mcp/tools.json")).toString());
 
     m_sessionId = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
     m_token = getConfig()->value("server/token").toString();
     m_readOnly = getConfig()->value("server/readOnly", true).toBool();
     m_debug = getConfig()->value("server/debug", false).toBool();
+
+    if (initialize.open(QFile::ReadOnly))
+    {
+        m_initialize = QJsonDocument::fromJson(QString(initialize.readAll()).arg(SERVICE_VERSION, PROTOCOL_VERSION).toUtf8()).object();
+        initialize.close();
+    }
 
     if (resources.open(QFile::ReadOnly))
     {
@@ -146,14 +152,14 @@ void Controller::httpResponse(QTcpSocket *socket, quint16 code, const QByteArray
     socket->close();
 }
 
-void Controller::rpcResponse(QTcpSocket *socket, const QJsonValue &id, const QJsonValue &result)
+void Controller::rpcResponse(QTcpSocket *socket, const QVariant &id, const QJsonValue &result)
 {
-    httpResponse(socket, 200, QJsonDocument({{"jsonrpc", "2.0"}, {"id", id}, {"result", result}}).toJson(QJsonDocument::Compact));
+    httpResponse(socket, 200, QJsonDocument({{"jsonrpc", "2.0"}, {"id", QJsonValue::fromVariant(id)}, {"result", result}}).toJson(QJsonDocument::Compact));
 }
 
-void Controller::rpcError(QTcpSocket *socket, const QJsonValue &id, int code, const QString &message)
+void Controller::rpcError(QTcpSocket *socket, const QVariant &id, int code, const QString &message)
 {
-    httpResponse(socket, 200, QJsonDocument({{"jsonrpc", "2.0"}, {"id", id}, {"error", QJsonObject {{"code", code}, {"message", message}}}}).toJson(QJsonDocument::Compact));
+    httpResponse(socket, 200, QJsonDocument({{"jsonrpc", "2.0"}, {"id", QJsonValue::fromVariant(id)}, {"error", QJsonObject {{"code", code}, {"message", message}}}}).toJson(QJsonDocument::Compact));
 }
 
 QJsonObject Controller::toolResult(const QString &text, bool error)
@@ -161,7 +167,7 @@ QJsonObject Controller::toolResult(const QString &text, bool error)
     return QJsonObject {{"content", QJsonArray {QJsonObject {{"type", "text"}, {"text", text}}}}, {"isError", error}};
 }
 
-void Controller::readResources(QTcpSocket *socket, const QJsonValue &rpcId, const QString &uri)
+void Controller::readResources(QTcpSocket *socket, const QVariant &id, const QString &uri)
 {
     QList <QString> list = {"homed://services", "homed://devices"};
     QString text;
@@ -186,12 +192,12 @@ void Controller::readResources(QTcpSocket *socket, const QJsonValue &rpcId, cons
 
         default:
         {
-            rpcError(socket, rpcId, -32602, QString("Unknown resource: %1").arg(uri));
+            rpcError(socket, id, -32602, QString("Unknown resource: %1").arg(uri));
             return;
         }
     }
 
-    rpcResponse(socket, rpcId, QJsonObject {{"contents", QJsonArray {QJsonObject {{"uri", uri}, {"text", text}}}}});
+    rpcResponse(socket, id, QJsonObject {{"contents", QJsonArray {QJsonObject {{"uri", uri}, {"text", text}}}}});
 }
 
 
@@ -200,7 +206,7 @@ void Controller::readResources(QTcpSocket *socket, const QJsonValue &rpcId, cons
 
 
 // not reviewed
-void Controller::callTools(QTcpSocket *socket, const QJsonValue &rpcId, const QString &name, const QJsonObject &arguments)
+void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString &name, const QJsonObject &arguments)
 {
     logInfo << "tools/call" << name.toUtf8().constData() << QJsonDocument(arguments).toJson(QJsonDocument::Compact).constData();
 
@@ -217,7 +223,7 @@ void Controller::callTools(QTcpSocket *socket, const QJsonValue &rpcId, const QS
             result.append(deviceInfo(it.value()));
         }
 
-        rpcResponse(socket, rpcId, toolResult(QJsonDocument(result).toJson(QJsonDocument::Compact)));
+        rpcResponse(socket, id, toolResult(QJsonDocument(result).toJson(QJsonDocument::Compact)));
         return;
     }
 
@@ -227,11 +233,11 @@ void Controller::callTools(QTcpSocket *socket, const QJsonValue &rpcId, const QS
 
         if (device.isNull())
         {
-            rpcResponse(socket, rpcId, toolResult(QString("Device \"%1\" not found").arg(arguments.value("device").toString()), true));
+            rpcResponse(socket, id, toolResult(QString("Device \"%1\" not found").arg(arguments.value("device").toString()), true));
             return;
         }
 
-        rpcResponse(socket, rpcId, toolResult(QJsonDocument(deviceInfo(device)).toJson(QJsonDocument::Compact)));
+        rpcResponse(socket, id, toolResult(QJsonDocument(deviceInfo(device)).toJson(QJsonDocument::Compact)));
         return;
     }
 
@@ -239,7 +245,7 @@ void Controller::callTools(QTcpSocket *socket, const QJsonValue &rpcId, const QS
     {
         if (m_readOnly)
         {
-            rpcResponse(socket, rpcId, toolResult("Service is running in read-only mode", true));
+            rpcResponse(socket, id, toolResult("Service is running in read-only mode", true));
             return;
         }
 
@@ -308,7 +314,7 @@ void Controller::callTools(QTcpSocket *socket, const QJsonValue &rpcId, const QS
         }
 
         logInfo << "set_properties published" << ok << "of" << operations.size() << "operations" << (failed ? QString("(%1 failed)").arg(failed).toUtf8().constData() : "");
-        rpcResponse(socket, rpcId, toolResult(QJsonDocument(results).toJson(QJsonDocument::Compact), failed > 0 && ok == 0));
+        rpcResponse(socket, id, toolResult(QJsonDocument(results).toJson(QJsonDocument::Compact), failed > 0 && ok == 0));
         return;
     }
 
@@ -316,7 +322,7 @@ void Controller::callTools(QTcpSocket *socket, const QJsonValue &rpcId, const QS
     {
         if (!m_services.contains("recorder"))
         {
-            rpcResponse(socket, rpcId, toolResult("homed-recorder service is not online", true));
+            rpcResponse(socket, id, toolResult("homed-recorder service is not online", true));
             return;
         }
 
@@ -324,7 +330,7 @@ void Controller::callTools(QTcpSocket *socket, const QJsonValue &rpcId, const QS
 
         if (device.isNull())
         {
-            rpcResponse(socket, rpcId, toolResult(QString("Device \"%1\" not found").arg(arguments.value("device").toString()), true));
+            rpcResponse(socket, id, toolResult(QString("Device \"%1\" not found").arg(arguments.value("device").toString()), true));
             return;
         }
 
@@ -334,18 +340,18 @@ void Controller::callTools(QTcpSocket *socket, const QJsonValue &rpcId, const QS
 
         if (target.isNull() || !target->properties().contains(property) || !target->properties().value(property)->history())
         {
-            rpcResponse(socket, rpcId, toolResult(QString("No history is recorded for property \"%1\" of device \"%2\"; only properties marked with \"history\" in get_device can be queried").arg(property, device->key()), true));
+            rpcResponse(socket, id, toolResult(QString("No history is recorded for property \"%1\" of device \"%2\"; only properties marked with \"history\" in get_device can be queried").arg(property, device->key()), true));
             return;
         }
 
         QString endpointKey = endpoint ? QString("%1/%2").arg(device->key()).arg(endpoint) : device->key();
-        QString correlationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        QString uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
-        m_pending.append({socket, rpcId, correlationId, QDateTime::currentMSecsSinceEpoch() + MCP_REQUEST_TIMEOUT});
+        m_pending.append({socket, id, uuid, QDateTime::currentMSecsSinceEpoch() + REQUEST_TIMEOUT});
 
         mqttPublish(mqttTopic("command/recorder"), QJsonObject {
                                                             {"action", "getData"},
-                                                            {"id", correlationId},
+                                                            {"id", uuid},
                                                             {"endpoint", endpointKey},
                                                             {"property", property},
                                                             {"start", arguments.value("start")},
@@ -355,78 +361,59 @@ void Controller::callTools(QTcpSocket *socket, const QJsonValue &rpcId, const QS
         return;
     }
 
-    rpcError(socket, rpcId, -32602, QString("Unknown tool: %1").arg(name));
+    rpcError(socket, id, -32602, QString("Unknown tool: %1").arg(name));
 }
+//
 
-// not reviewed
-void Controller::handleRpc(QTcpSocket *socket, const QJsonObject &json)
+
+
+
+
+void Controller::handleRpc(QTcpSocket *socket, const QJsonObject &request)
 {
-    QString rpcMethod = json.value("method").toString();
-    QJsonValue rpcId = json.value("id");
-    QJsonObject params = json.value("params").toObject();
-    bool isNotification = !json.contains("id");
+    QList <QString> list = {"initialize", "ping", "resources/list", "resources/read", "tools/list", "tools/call"};
+    QString method = request.value("method").toString();
+    QVariant id = request.value("id").toVariant();
+    QJsonObject data = request.value("params").toObject();
 
-    logDebug(m_debug) << "RPC method" << rpcMethod.toUtf8().constData();
+    logDebug(m_debug) << "RPC called, method:" << method.toUtf8().constData();
 
-    if (isNotification)
+    if (!request.contains("id"))
     {
         httpResponse(socket, 202);
         return;
     }
 
-    if (rpcMethod == "initialize")
+    switch (list.indexOf(method))
     {
-        rpcResponse(socket, rpcId, QJsonObject {
-                                            {"protocolVersion", MCP_PROTOCOL_VERSION},
-                                            {"capabilities", QJsonObject {
-                                                                      {"tools", QJsonObject {{"listChanged", false}}},
-                                                                      {"resources", QJsonObject {{"listChanged", false}, {"subscribe", false}}}
-                                                             }},
-                                            {"serverInfo", QJsonObject {
-                                                                    {"name", "homed-mcp"},
-                                                                    {"version", SERVICE_VERSION}
-                                                           }},
-                                            {"instructions", "Access HOMEd smart-home devices and historical data over MQTT."}
-                                   });
-        return;
-    }
+        case 0: // initialize
+            rpcResponse(socket, id, m_initialize);
+            break;
 
-    if (rpcMethod == "ping")
-    {
-        rpcResponse(socket, rpcId, QJsonObject());
-        return;
-    }
+        case 1: // ping
+            rpcResponse(socket, id);
+            break;
 
-    if (rpcMethod == "resources/list")
-    {
-        rpcResponse(socket, rpcId, QJsonObject {{"resources", m_resources}});
-        return;
-    }
+        case 2: // resources/list
+            rpcResponse(socket, id, QJsonObject {{"resources", m_resources}});
+            break;
 
-    if (rpcMethod == "resources/read")
-    {
-        readResources(socket, rpcId, params.value("uri").toString());
-        return;
-    }
+        case 3: // resources/read
+            readResources(socket, id, data.value("uri").toString());
+            break;
 
-    if (rpcMethod == "tools/list")
-    {
-        rpcResponse(socket, rpcId, QJsonObject {{"tools", m_tools}});
-        return;
-    }
+        case 4: // tools/list
+            rpcResponse(socket, id, QJsonObject {{"tools", m_tools}});
+            break;
 
-    if (rpcMethod == "tools/call")
-    {
-        callTools(socket, rpcId, params.value("name").toString(), params.value("arguments").toObject());
-        return;
-    }
+        case 5: // tools/call
+            callTools(socket, id, data.value("name").toString(), data.value("arguments").toObject());
+            break;
 
-    rpcError(socket, rpcId, -32601, QString("Method not found: %1").arg(rpcMethod));
+        default:
+            rpcError(socket, id, -32601, QString("Method not found: %1").arg(method)); break;
+    }
 }
-
-
-
-
 
 void Controller::mqttConnected(void)
 {
@@ -456,13 +443,13 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
     }
     else if (subTopic == "recorder")
     {
-        QString id = json.value("id").toString();
+        QString uuid = json.value("id").toString();
         PendingRequest request;
         bool check = false;
 
         for (int i = 0; i < m_pending.count(); i++)
         {
-            if (m_pending.at(i).requestId != id)
+            if (m_pending.at(i).uuid != uuid)
                 continue;
 
             request = m_pending.at(i);
@@ -474,7 +461,7 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
         if (check && m_sockets.contains(request.socket))
         {
             json.remove("id");
-            rpcResponse(request.socket, request.rpcId, toolResult(QJsonDocument(json).toJson(QJsonDocument::Compact)));
+            rpcResponse(request.socket, request.id, toolResult(QJsonDocument(json).toJson(QJsonDocument::Compact)));
         }
     }
     else if (subTopic.startsWith("service/"))
@@ -740,7 +727,7 @@ void Controller::readyRead(void)
         return;
     }
 
-    rpcError(socket, QJsonValue::Null, -32700, "Parse error");
+    rpcError(socket, QVariant(), -32700, "Parse error");
 }
 
 void Controller::checkPending(void)
@@ -767,6 +754,6 @@ void Controller::checkPending(void)
         if (!m_sockets.contains(request.socket))
             continue;
 
-        rpcResponse(request.socket, request.rpcId, toolResult("Request timed out", true));
+        rpcResponse(request.socket, request.id, toolResult("Request timed out", true));
     }
 }

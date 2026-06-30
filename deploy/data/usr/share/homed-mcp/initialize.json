@@ -1,0 +1,17 @@
+{
+  "capabilities": {
+    "tools": {
+      "listChanged": false
+    },
+    "resources": {
+      "listChanged": false,
+      "subscribe": false
+    }
+  },
+  "serverInfo": {
+    "name": "homed-mcp",
+    "version": "%1"
+  },
+  "protocolVersion": "%2",
+  "instructions": "Access HOMEd smart-home devices and historical data over MQTT."
+}

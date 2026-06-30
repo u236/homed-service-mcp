@@ -1,30 +1,21 @@
 #ifndef CONTROLLER_H
 #define CONTROLLER_H
 
-#define SERVICE_VERSION         "0.0.1"
-
-#define MCP_PROTOCOL_VERSION    "2025-06-18"
-#define MCP_REQUEST_TIMEOUT     5000
+#define SERVICE_VERSION     "0.0.2"
+#define PROTOCOL_VERSION    "2025-06-18"
+#define REQUEST_TIMEOUT     5000
 
 #include <QTcpServer>
 #include "device.h"
 #include "homed.h"
 
-
-
-
-// not reviewed
 struct PendingRequest
 {
     QTcpSocket *socket;
-    QJsonValue rpcId;
-    QString requestId;
+    QVariant id;
+    QString uuid;
     qint64 expires;
 };
-
-
-
-
 
 class Controller : public HOMEd
 {
@@ -42,6 +33,7 @@ private:
     QString m_sessionId, m_token;
     bool m_readOnly, m_debug;
 
+    QJsonObject m_initialize;
     QJsonArray m_resources, m_tools;
 
     QList <QString> m_services;
@@ -60,21 +52,13 @@ private:
     QJsonObject deviceInfo(const Device &device);
 
     void httpResponse(QTcpSocket *socket, quint16 code, const QByteArray &response = QByteArray());
-    void rpcResponse(QTcpSocket *socket, const QJsonValue &id, const QJsonValue &result);
-    void rpcError(QTcpSocket *socket, const QJsonValue &id, int code, const QString &message);
+    void rpcResponse(QTcpSocket *socket, const QVariant &id, const QJsonValue &result = QJsonObject());
+    void rpcError(QTcpSocket *socket, const QVariant &id, int code, const QString &message);
     QJsonObject toolResult(const QString &text, bool error = false);
 
-    void readResources(QTcpSocket *socket, const QJsonValue &rpcId, const QString &uri);
-
-
-
-
+    void readResources(QTcpSocket *socket, const QVariant &id, const QString &uri);
+    void callTools(QTcpSocket *socket, const QVariant &id, const QString &name, const QJsonObject &arguments);
     void handleRpc(QTcpSocket *socket, const QJsonObject &request);
-    void callTools(QTcpSocket *socket, const QJsonValue &rpcId, const QString &name, const QJsonObject &arguments);
-
-
-
-
 
 private slots:
 
