@@ -9,7 +9,7 @@
 #include "device.h"
 #include "homed.h"
 
-struct PendingRequest
+struct RecorderRequest
 {
     QTcpSocket *socket;
     QVariant id;
@@ -43,7 +43,7 @@ private:
     QMap <QString, QString> m_propertyNames;
 
     QList <QTcpSocket*> m_sockets;
-    QList <PendingRequest> m_pending;
+    QList <RecorderRequest> m_requests;
 
     Device findDevice(const QString &search);
     quint8 getEndpointId(const QString &endpoint);
@@ -67,9 +67,9 @@ private slots:
 
     void socketConnected(void);
     void socketDisconnected(void);
-
     void readyRead(void);
-    void checkPending(void);
+
+    void checkRequests(void);
 
 };
 

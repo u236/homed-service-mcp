@@ -32,7 +32,7 @@ Controller::Controller(const QString &configFile) : HOMEd(SERVICE_VERSION, confi
     }
 
     connect(m_tcpServer, &QTcpServer::newConnection, this, &Controller::socketConnected);
-    connect(m_timer, &QTimer::timeout, this, &Controller::checkPending);
+    connect(m_timer, &QTimer::timeout, this, &Controller::checkRequests);
 
     if (!m_tcpServer->listen(QHostAddress(getConfig()->value("server/address", "0.0.0.0").toString()), static_cast <quint16> (getConfig()->value("server/port", 8086).toInt())))
     {
@@ -347,7 +347,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
         QString endpointKey = endpoint ? QString("%1/%2").arg(device->key()).arg(endpoint) : device->key();
         QString uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
-        m_pending.append({socket, id, uuid, QDateTime::currentMSecsSinceEpoch() + REQUEST_TIMEOUT});
+        m_requests.append({socket, id, uuid, QDateTime::currentMSecsSinceEpoch() + REQUEST_TIMEOUT});
 
         mqttPublish(mqttTopic("command/recorder"), QJsonObject {
                                                             {"action", "getData"},
@@ -444,16 +444,16 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
     else if (subTopic == "recorder")
     {
         QString uuid = json.value("id").toString();
-        PendingRequest request;
+        RecorderRequest request;
         bool check = false;
 
-        for (int i = 0; i < m_pending.count(); i++)
+        for (int i = 0; i < m_requests.count(); i++)
         {
-            if (m_pending.at(i).uuid != uuid)
+            if (m_requests.at(i).uuid != uuid)
                 continue;
 
-            request = m_pending.at(i);
-            m_pending.removeAt(i);
+            request = m_requests.at(i);
+            m_requests.removeAt(i);
             check = true;
             break;
         }
@@ -653,11 +653,11 @@ void Controller::socketDisconnected(void)
 {
     QTcpSocket *socket = reinterpret_cast <QTcpSocket*> (sender());
 
-    for (auto it = m_pending.begin(); it != m_pending.end(); NULL)
+    for (auto it = m_requests.begin(); it != m_requests.end(); NULL)
     {
         if (it->socket == socket)
         {
-            it = m_pending.erase(it);
+            it = m_requests.erase(it);
             continue;
         }
 
@@ -730,17 +730,17 @@ void Controller::readyRead(void)
     rpcError(socket, QVariant(), -32700, "Parse error");
 }
 
-void Controller::checkPending(void)
+void Controller::checkRequests(void)
 {
     qint64 now = QDateTime::currentMSecsSinceEpoch();
-    QList <PendingRequest> list;
+    QList <RecorderRequest> list;
 
-    for (auto it = m_pending.begin(); it != m_pending.end(); NULL)
+    for (auto it = m_requests.begin(); it != m_requests.end(); NULL)
     {
         if (now > it->expires)
         {
             list.append(*it);
-            it = m_pending.erase(it);
+            it = m_requests.erase(it);
             continue;
         }
 
@@ -749,7 +749,7 @@ void Controller::checkPending(void)
 
     for (int i = 0; i < list.count(); i++)
     {
-        const PendingRequest &request = list.at(i);
+        const RecorderRequest &request = list.at(i);
 
         if (!m_sockets.contains(request.socket))
             continue;
