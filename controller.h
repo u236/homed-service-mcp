@@ -10,13 +10,21 @@
 #include "device.h"
 #include "homed.h"
 
+
+
+
+// not reviewed
 struct PendingRequest
 {
     QTcpSocket *socket;
     QJsonValue rpcId;
-    QString correlationId;
+    QString requestId;
     qint64 expires;
 };
+
+
+
+
 
 class Controller : public HOMEd
 {
@@ -34,7 +42,7 @@ private:
     QString m_sessionId, m_token;
     bool m_readOnly, m_debug;
 
-    QJsonArray m_tools, m_resources;
+    QJsonArray m_resources, m_tools;
 
     QList <QString> m_services;
     QMap <QString, Device> m_devices;
@@ -44,9 +52,6 @@ private:
 
     QList <QTcpSocket*> m_sockets;
     QList <PendingRequest> m_pending;
-
-
-
 
     Device findDevice(const QString &search);
     quint8 getEndpointId(const QString &endpoint);
@@ -59,16 +64,17 @@ private:
     void rpcError(QTcpSocket *socket, const QJsonValue &id, int code, const QString &message);
     QJsonObject toolResult(const QString &text, bool error = false);
 
+    void readResources(QTcpSocket *socket, const QJsonValue &rpcId, const QString &uri);
 
 
 
 
     void handleRpc(QTcpSocket *socket, const QJsonObject &request);
-    void handleToolsCall(QTcpSocket *socket, const QJsonValue &rpcId, const QString &name, const QJsonObject &arguments);
-    void handleResourcesRead(QTcpSocket *socket, const QJsonValue &rpcId, const QString &uri);
+    void callTools(QTcpSocket *socket, const QJsonValue &rpcId, const QString &name, const QJsonObject &arguments);
 
 
-    void completeHistoryRequest(const QString &correlationId, const QJsonObject &payload);
+
+
 
 private slots:
 
@@ -78,12 +84,7 @@ private slots:
     void socketConnected(void);
     void socketDisconnected(void);
 
-
-
-
-
     void readyRead(void);
-
     void checkPending(void);
 
 };
