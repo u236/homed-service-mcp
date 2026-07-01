@@ -77,6 +77,11 @@ quint8 Controller::getEndpointId(const QString &endpoint)
     return 0;
 }
 
+quint8 Controller::getEndpointId(const QVariant &value)
+{
+    return value.toString() != "common" ? static_cast <quint8> (value.toInt()) : 0;
+}
+
 void Controller::updateProperties(const Device &device)
 {
     QString key = device->key().append('/');
@@ -257,7 +262,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
         {
             QJsonObject op = it->toObject();
             QString deviceArg = op.value("device").toString();
-            int endpoint = op.value("endpoint").toInt();
+            quint8 endpoint = getEndpointId(op.value("endpoint").toVariant());
             QJsonObject properties = op.value("properties").toObject();
             Device device = findDevice(deviceArg);
 
@@ -291,7 +296,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
             {
                 results.append(QJsonObject {
                          {"device", device->key()},
-                         {"endpoint", endpoint ? QJsonValue(endpoint) : QJsonValue()},
+                         {"endpoint", endpoint ? QJsonValue(endpoint) : QJsonValue("common")},
                          {"ok", false},
                          {"error", QString("unknown sub-key(s): %1; writable sub-keys for this (device, endpoint) are: %2").arg(invalidSubKeys.join(", "), writableSubKeys.join(", "))}
                 });
@@ -335,7 +340,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
         }
 
         QString property = arguments.value("property").toString();
-        int endpoint = arguments.value("endpoint").toInt();
+        quint8 endpoint = getEndpointId(arguments.value("endpoint").toVariant());
         const Endpoint &target = device->endpoints().value(static_cast <quint8> (endpoint));
 
         if (target.isNull() || !target->properties().contains(property) || !target->properties().value(property)->history())

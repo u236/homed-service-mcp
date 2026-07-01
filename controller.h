@@ -46,7 +46,9 @@ private:
     QList <RecorderRequest> m_requests;
 
     Device findDevice(const QString &search);
+
     quint8 getEndpointId(const QString &endpoint);
+    quint8 getEndpointId(const QVariant &value);
 
     void updateProperties(const Device &device);
     QJsonObject deviceInfo(const Device &device);

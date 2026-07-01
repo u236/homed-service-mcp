@@ -34,7 +34,7 @@
   },
   {
     "name": "set_properties",
-    "description": "Publish property updates to HOMEd devices in a single batch call. Always prefer one call with many operations to many sequential calls.\n\nOne operation targets ONE (device, endpoint) pair. To know what you can write, call get_device (or list_devices) and inspect `properties.<endpoint>`: every entry with `writable: true` may be set, the key is the exact sub-key you put under `properties`, and `enum`/`min`/`max`/`unit`/`note` describe the accepted value. `endpoint` is the numeric key — omit it for `properties.common` (also when sub-keys carry a `_N` suffix). Group several sub-keys of the same (device, endpoint) into one operation.\n\nOperations are processed independently — failure on one does not abort the others.\n",
+    "description": "Publish property updates to HOMEd devices in a single batch call. Always prefer one call with many operations to many sequential calls.\n\nOne operation targets ONE (device, endpoint) pair. To know what you can write, call get_device (or list_devices) and inspect `properties.<endpoint>`: every entry with `writable: true` may be set, the key is the exact sub-key you put under `properties`, and `enum`/`min`/`max`/`unit`/`note` describe the accepted value. For `endpoint`, echo the key exactly as it appears under `properties` in get_device: the string \"common\" or the numeric id (e.g. 5). `endpoint` may be omitted, which is treated the same as \"common\" (also use \"common\"/omit when sub-keys carry a `_N` suffix). Group several sub-keys of the same (device, endpoint) into one operation.\n\nOperations are processed independently — failure on one does not abort the others.\n",
     "inputSchema": {
       "type": "object",
       "required": [
@@ -57,13 +57,13 @@
                 "description": "Device key or name."
               },
               "endpoint": {
-                "type": "integer",
-                "description": "Numeric endpoint id. Set when the sub-keys live under properties[\"<N>\"]. Do NOT set when they live in properties.common."
+                "type": ["string", "integer"],
+                "description": "The endpoint key exactly as it appears under `properties` in get_device: the string \"common\" or a numeric id (accepted as integer or string). Optional — omitting it is treated as \"common\". Set the numeric id when the sub-keys live under properties[\"<N>\"]; use \"common\" (or omit) when they live in properties.common."
               },
               "properties": {
                 "type": "object",
                 "minProperties": 1,
-                "description": "Map of sub-key → target value, all written to the same td/ topic in ONE message. Keys are bare (e.g. \"status\", \"level\") when `endpoint` is set OR the device is single-endpoint; they carry a _N suffix (e.g. \"status_5\") only when the matching item is in common with a _N suffix and `endpoint` is NOT set. Values: boolean for toggle/button, string for status/select/systemMode/etc., number for level/position/targetTemperature, array [r,g,b] for color.",
+                "description": "Map of sub-key → target value, all written to the same td/ topic in ONE message. Keys are bare (e.g. \"status\", \"level\") when `endpoint` is a numeric id OR the device is single-endpoint; they carry a _N suffix (e.g. \"status_5\") only when the matching item is in common with a _N suffix and `endpoint` is \"common\"/omitted. Values: boolean for toggle/button, string for status/select/systemMode/etc., number for level/position/targetTemperature, array [r,g,b] for color.",
                 "additionalProperties": true
               }
             }
@@ -89,8 +89,8 @@
           "description": "Device key or name."
         },
         "endpoint": {
-          "type": "integer",
-          "description": "Numeric endpoint id. Set when the property lives under properties[\"<N>\"]. Do NOT set when it lives in properties.common."
+          "type": ["string", "integer"],
+          "description": "The endpoint key exactly as it appears under `properties` in get_device: the string \"common\" or a numeric id (accepted as integer or string). Optional — omitting it is treated as \"common\". Set the numeric id when the property lives under properties[\"<N>\"]; use \"common\" (or omit) when it lives in properties.common."
         },
         "property": {
           "type": "string",
