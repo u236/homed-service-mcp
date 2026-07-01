@@ -10,7 +10,7 @@ Controller::Controller(const QString &configFile) : HOMEd(SERVICE_VERSION, confi
     m_sessionId = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
     m_token = getConfig()->value("server/token").toString();
-    m_readOnly = getConfig()->value("server/readOnly", true).toBool();
+    m_write = getConfig()->value("server/write", false).toBool();
     m_debug = getConfig()->value("server/debug", false).toBool();
 
     if (initialize.open(QFile::ReadOnly))
@@ -45,7 +45,7 @@ Controller::Controller(const QString &configFile) : HOMEd(SERVICE_VERSION, confi
 
     m_timer->start(1000);
 
-    if (!m_readOnly)
+    if (m_write)
         return;
 
     for (auto it = m_tools.begin(); it != m_tools.end(); it++)
@@ -243,7 +243,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
 
     if (name == "set_properties")
     {
-        if (m_readOnly)
+        if (!m_write)
         {
             rpcResponse(socket, id, toolResult("Service is running in read-only mode", true));
             return;
