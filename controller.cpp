@@ -228,7 +228,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
             result.append(deviceInfo(it.value()));
         }
 
-        rpcResponse(socket, id, toolResult(QJsonDocument(result).toJson(QJsonDocument::Compact)));
+        rpcResponse(socket, id, toolResult(QJsonDocument(QJsonObject {{"devices", result}}).toJson(QJsonDocument::Compact)));
         return;
     }
 
@@ -295,12 +295,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
 
             if (!invalidSubKeys.isEmpty() && !writableSubKeys.isEmpty())
             {
-                results.append(QJsonObject {
-                         {"device", device->key()},
-                         {"endpoint", endpointValue},
-                         {"ok", false},
-                         {"error", QString("unknown sub-key(s): %1; writable sub-keys for this (device, endpoint) are: %2").arg(invalidSubKeys.join(", "), writableSubKeys.join(", "))}
-                });
+                results.append(QJsonObject {{"device", device->key()}, {"endpoint", endpointValue}, {"ok", false}, {"error", QString("unknown sub-key(s): %1; writable sub-keys for this (device, endpoint) are: %2").arg(invalidSubKeys.join(", "), writableSubKeys.join(", "))}});
                 failed++;
                 continue;
             }
@@ -320,7 +315,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
         }
 
         logInfo << "set_properties published" << ok << "of" << operations.size() << "operations" << (failed ? QString("(%1 failed)").arg(failed).toUtf8().constData() : "");
-        rpcResponse(socket, id, toolResult(QJsonDocument(results).toJson(QJsonDocument::Compact), failed > 0 && ok == 0));
+        rpcResponse(socket, id, toolResult(QJsonDocument(QJsonObject {{"results", results}}).toJson(QJsonDocument::Compact), failed > 0 && ok == 0));
         return;
     }
 
@@ -354,15 +349,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
         QString uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
         m_requests.append({socket, id, uuid, QDateTime::currentMSecsSinceEpoch() + REQUEST_TIMEOUT});
-
-        mqttPublish(mqttTopic("command/recorder"), QJsonObject {
-                                                            {"action", "getData"},
-                                                            {"id", uuid},
-                                                            {"endpoint", endpointKey},
-                                                            {"property", property},
-                                                            {"start", arguments.value("start")},
-                                                            {"end", arguments.value("end")}
-                                                   });
+        mqttPublish(mqttTopic("command/recorder"), {{"action", "getData"}, {"id", uuid}, {"endpoint", endpointKey}, {"property", property}, {"start", arguments.value("start")}, {"end", arguments.value("end")}});
 
         return;
     }

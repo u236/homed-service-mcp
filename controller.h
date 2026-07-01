@@ -1,8 +1,8 @@
 #ifndef CONTROLLER_H
 #define CONTROLLER_H
 
-#define SERVICE_VERSION     "0.0.3"
-#define PROTOCOL_VERSION    "2025-06-18"
+#define SERVICE_VERSION     "0.0.4"
+#define PROTOCOL_VERSION    "2025-11-25"
 #define REQUEST_TIMEOUT     5000
 
 #include <QTcpServer>
