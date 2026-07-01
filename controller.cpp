@@ -263,19 +263,20 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
             QJsonObject op = it->toObject();
             QString deviceArg = op.value("device").toString();
             quint8 endpoint = getEndpointId(op.value("endpoint").toVariant());
+            QJsonValue endpointValue = endpoint ? QJsonValue(endpoint) : QJsonValue("common");
             QJsonObject properties = op.value("properties").toObject();
             Device device = findDevice(deviceArg);
 
             if (device.isNull())
             {
-                results.append(QJsonObject {{"device", deviceArg}, {"ok", false}, {"error", "device not found"}});
+                results.append(QJsonObject {{"device", deviceArg}, {"endpoint", endpointValue}, {"ok", false}, {"error", "device not found"}});
                 failed++;
                 continue;
             }
 
             if (properties.isEmpty())
             {
-                results.append(QJsonObject {{"device", device->key()}, {"ok", false}, {"error", "properties is empty"}});
+                results.append(QJsonObject {{"device", device->key()}, {"endpoint", endpointValue}, {"ok", false}, {"error", "properties is empty"}});
                 failed++;
                 continue;
             }
@@ -296,7 +297,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
             {
                 results.append(QJsonObject {
                          {"device", device->key()},
-                         {"endpoint", endpoint ? QJsonValue(endpoint) : QJsonValue("common")},
+                         {"endpoint", endpointValue},
                          {"ok", false},
                          {"error", QString("unknown sub-key(s): %1; writable sub-keys for this (device, endpoint) are: %2").arg(invalidSubKeys.join(", "), writableSubKeys.join(", "))}
                 });
@@ -314,7 +315,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
             }
 
             mqttPublish(mqttTopic(topic), payload);
-            results.append(QJsonObject {{"device", device->key()}, {"topic", topic}, {"properties", QJsonArray::fromStringList(properties.keys())}, {"ok", true}});
+            results.append(QJsonObject {{"device", device->key()}, {"endpoint", endpointValue}, {"topic", topic}, {"properties", QJsonArray::fromStringList(properties.keys())}, {"ok", true}});
             ok++;
         }
 

@@ -159,6 +159,7 @@
         "type": "object",
         "required": [
           "device",
+          "endpoint",
           "ok"
         ],
         "properties": {
@@ -168,7 +169,7 @@
           },
           "endpoint": {
             "type": ["string", "integer"],
-            "description": "\"common\" or the numeric endpoint id (present once the operation reached endpoint resolution)."
+            "description": "The endpoint the operation targeted: \"common\" or the numeric id, echoed from the request."
           },
           "topic": {
             "type": "string",
@@ -232,9 +233,14 @@
       "type": "object",
       "description": "Parallel arrays. `timestamp` is always present (Unix ms). For raw samples `value` is present; for aggregated long ranges `avg`/`min`/`max` are present instead of `value`.",
       "required": [
+        "time",
         "timestamp"
       ],
       "properties": {
+        "time": {
+          "type": "integer",
+          "description": "Server-side query duration in milliseconds."
+        },
         "timestamp": {
           "type": "array",
           "description": "Sample times, Unix timestamps in MILLISECONDS.",
@@ -244,7 +250,10 @@
         },
         "value": {
           "type": "array",
-          "description": "Raw recorded values, aligned with `timestamp` (present for short ranges)."
+          "description": "Raw recorded values, aligned with `timestamp` (present for short ranges). Values are returned as strings (they are stored as text); an entry is null only when the device was unavailable at that sample.",
+          "items": {
+            "type": ["string", "null"]
+          }
         },
         "avg": {
           "type": "array",
