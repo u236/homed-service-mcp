@@ -14,6 +14,48 @@
           "description": "Optional filter by device type."
         }
       }
+    },
+    "outputSchema": {
+      "type": "array",
+      "description": "Matching devices (filtered by service/type when provided). Each item has the same shape as the get_device result.",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "available"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Canonical device key \"<type>/<id>\"."
+          },
+          "type": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string",
+            "description": "HOMEd service topic (e.g. 'zigbee')."
+          },
+          "name": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean",
+            "description": "Whether the device is currently online."
+          },
+          "note": {
+            "type": "string",
+            "description": "User-defined free-text annotation; omitted when empty."
+          },
+          "properties": {
+            "type": "object",
+            "description": "Endpoint key (\"common\" or numeric id) → map of sub-key → value/schema.",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
     }
   },
   {
@@ -30,6 +72,45 @@
           "description": "Device key or name."
         }
       }
+    },
+    "outputSchema": {
+      "type": "object",
+      "description": "Full device info. `properties` is keyed by endpoint (\"common\" or a numeric id); each sub-property carries its current value plus schema (writable, enum/min/max/unit, display_name, history, note).",
+      "required": [
+        "key",
+        "name",
+        "available"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Canonical device key \"<type>/<id>\"."
+        },
+        "type": {
+          "type": "string"
+        },
+        "service": {
+          "type": "string",
+          "description": "HOMEd service topic (e.g. 'zigbee')."
+        },
+        "name": {
+          "type": "string"
+        },
+        "available": {
+          "type": "boolean",
+          "description": "Whether the device is currently online."
+        },
+        "note": {
+          "type": "string",
+          "description": "User-defined free-text annotation; omitted when empty."
+        },
+        "properties": {
+          "type": "object",
+          "description": "Endpoint key (\"common\" or numeric id) → map of sub-key → value/schema.",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
     }
   },
   {
@@ -70,6 +151,47 @@
           }
         }
       }
+    },
+    "outputSchema": {
+      "type": "array",
+      "description": "One result per operation, in input order. Operations are independent — a failure on one does not affect the others.",
+      "items": {
+        "type": "object",
+        "required": [
+          "device",
+          "ok"
+        ],
+        "properties": {
+          "device": {
+            "type": "string",
+            "description": "Resolved device key, or the raw argument when the device was not found."
+          },
+          "endpoint": {
+            "type": ["string", "integer"],
+            "description": "\"common\" or the numeric endpoint id (present once the operation reached endpoint resolution)."
+          },
+          "topic": {
+            "type": "string",
+            "description": "The td/ topic the payload was published to (present on success)."
+          },
+          "properties": {
+            "type": "array",
+            "description": "Sub-keys written in this operation (present on success).",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "Whether the operation was published successfully."
+          },
+          "error": {
+            "type": "string",
+            "description": "Failure reason (present when ok is false)."
+          }
+        },
+        "additionalProperties": true
+      }
     }
   },
   {
@@ -105,6 +227,48 @@
           "description": "Range end, Unix timestamp in MILLISECONDS (Unix seconds × 1000). Pass 0 for \"up to now\"."
         }
       }
+    },
+    "outputSchema": {
+      "type": "object",
+      "description": "Parallel arrays. `timestamp` is always present (Unix ms). For raw samples `value` is present; for aggregated long ranges `avg`/`min`/`max` are present instead of `value`.",
+      "required": [
+        "timestamp"
+      ],
+      "properties": {
+        "timestamp": {
+          "type": "array",
+          "description": "Sample times, Unix timestamps in MILLISECONDS.",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "value": {
+          "type": "array",
+          "description": "Raw recorded values, aligned with `timestamp` (present for short ranges)."
+        },
+        "avg": {
+          "type": "array",
+          "description": "Hourly average, aligned with `timestamp` (present for long ranges).",
+          "items": {
+            "type": "number"
+          }
+        },
+        "min": {
+          "type": "array",
+          "description": "Hourly minimum, aligned with `timestamp` (present for long ranges).",
+          "items": {
+            "type": "number"
+          }
+        },
+        "max": {
+          "type": "array",
+          "description": "Hourly maximum, aligned with `timestamp` (present for long ranges).",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "additionalProperties": true
     }
   }
 ]
