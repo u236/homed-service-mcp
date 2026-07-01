@@ -205,162 +205,166 @@ void Controller::readResources(QTcpSocket *socket, const QVariant &id, const QSt
     rpcResponse(socket, id, QJsonObject {{"contents", QJsonArray {QJsonObject {{"uri", uri}, {"text", text}}}}});
 }
 
-
-
-
-
-
-// not reviewed
 void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString &name, const QJsonObject &arguments)
 {
-    logInfo << "tools/call" << name.toUtf8().constData() << QJsonDocument(arguments).toJson(QJsonDocument::Compact).constData();
+    QList <QString> list = {"list_devices", "get_device", "set_properties", "query_history"};
 
-    if (name == "list_devices")
+    logInfo << "Tool" << name << "called with arguments" << QJsonDocument(arguments).toJson(QJsonDocument::Compact).constData();
+
+    switch (list.indexOf(name))
     {
-        QString service = arguments.value("service").toString(), type = arguments.value("type").toString();
-        QJsonArray result;
-
-        for (auto it = m_devices.begin(); it != m_devices.end(); it++)
+        case 0: // list_devices
         {
-            if (!service.isEmpty() && !it.value()->topic().startsWith(service))
-                continue;
+            QString service = arguments.value("service").toString();
+            QJsonArray devices;
 
-            result.append(deviceInfo(it.value()));
+            for (auto it = m_devices.begin(); it != m_devices.end(); it++)
+            {
+                if (!service.isEmpty() && !it.value()->topic().startsWith(service))
+                    continue;
+
+                devices.append(deviceInfo(it.value()));
+            }
+
+            rpcResponse(socket, id, toolResult(QJsonDocument(QJsonObject {{"devices", devices}}).toJson(QJsonDocument::Compact)));
+            break;
         }
 
-        rpcResponse(socket, id, toolResult(QJsonDocument(QJsonObject {{"devices", result}}).toJson(QJsonDocument::Compact)));
-        return;
-    }
-
-    if (name == "get_device")
-    {
-        Device device = findDevice(arguments.value("device").toString());
-
-        if (device.isNull())
+        case 1: // get_device
         {
-            rpcResponse(socket, id, toolResult(QString("Device \"%1\" not found").arg(arguments.value("device").toString()), true));
-            return;
-        }
-
-        rpcResponse(socket, id, toolResult(QJsonDocument(deviceInfo(device)).toJson(QJsonDocument::Compact)));
-        return;
-    }
-
-    if (name == "set_properties")
-    {
-        if (!m_write)
-        {
-            rpcResponse(socket, id, toolResult("Service is running in read-only mode", true));
-            return;
-        }
-
-        QJsonArray operations = arguments.value("operations").toArray();
-        QJsonArray results;
-        int ok = 0, failed = 0;
-
-        for (auto it = operations.begin(); it != operations.end(); it++)
-        {
-            QJsonObject op = it->toObject();
-            QString deviceArg = op.value("device").toString();
-            quint8 endpoint = getEndpointId(op.value("endpoint").toVariant());
-            QJsonValue endpointValue = endpoint ? QJsonValue(endpoint) : QJsonValue("common");
-            QJsonObject properties = op.value("properties").toObject();
-            Device device = findDevice(deviceArg);
+            const Device &device = findDevice(arguments.value("device").toString());
 
             if (device.isNull())
             {
-                results.append(QJsonObject {{"device", deviceArg}, {"endpoint", endpointValue}, {"ok", false}, {"error", "device not found"}});
-                failed++;
-                continue;
+                rpcResponse(socket, id, toolResult(QString("Device \"%1\" not found").arg(arguments.value("device").toString()), true));
+                break;
             }
 
-            if (properties.isEmpty())
-            {
-                results.append(QJsonObject {{"device", device->key()}, {"endpoint", endpointValue}, {"ok", false}, {"error", "properties is empty"}});
-                failed++;
-                continue;
-            }
-
-            const Endpoint &target = device->endpoints().value(static_cast <quint8> (endpoint));
-            QList <QString> writableSubKeys, invalidSubKeys;
-
-            if (!target.isNull())
-                for (auto e = target->properties().begin(); e != target->properties().end(); e++)
-                    if (e.value()->writable())
-                        writableSubKeys.append(e.key());
-
-            for (auto jt = properties.begin(); jt != properties.end(); jt++)
-                if (!writableSubKeys.contains(jt.key()))
-                    invalidSubKeys.append(jt.key());
-
-            if (!invalidSubKeys.isEmpty() && !writableSubKeys.isEmpty())
-            {
-                results.append(QJsonObject {{"device", device->key()}, {"endpoint", endpointValue}, {"ok", false}, {"error", QString("unknown sub-key(s): %1; writable sub-keys for this (device, endpoint) are: %2").arg(invalidSubKeys.join(", "), writableSubKeys.join(", "))}});
-                failed++;
-                continue;
-            }
-
-            QString topic = endpoint ? QString("td/%1/%2").arg(device->topic()).arg(endpoint) : QString("td/%1").arg(device->topic());
-            QJsonObject payload;
-
-            for (auto jt = properties.begin(); jt != properties.end(); jt++)
-            {
-                QJsonValue value = jt.value();
-                payload.insert(jt.key(), value.isString() ? QJsonValue::fromVariant(Parser::stringValue(value.toString())) : value);
-            }
-
-            mqttPublish(mqttTopic(topic), payload);
-            results.append(QJsonObject {{"device", device->key()}, {"endpoint", endpointValue}, {"topic", topic}, {"properties", QJsonArray::fromStringList(properties.keys())}, {"ok", true}});
-            ok++;
+            rpcResponse(socket, id, toolResult(QJsonDocument(deviceInfo(device)).toJson(QJsonDocument::Compact)));
+            break;
         }
 
-        logInfo << "set_properties published" << ok << "of" << operations.size() << "operations" << (failed ? QString("(%1 failed)").arg(failed).toUtf8().constData() : "");
-        rpcResponse(socket, id, toolResult(QJsonDocument(QJsonObject {{"results", results}}).toJson(QJsonDocument::Compact), failed > 0 && ok == 0));
-        return;
-    }
-
-    if (name == "query_history")
-    {
-        if (!m_services.contains("recorder"))
+        case 2: // set_properties
         {
-            rpcResponse(socket, id, toolResult("homed-recorder service is not online", true));
-            return;
+            QJsonArray items = arguments.value("items").toArray(), results;
+            bool error = true;
+
+            if (!m_write)
+            {
+                rpcResponse(socket, id, toolResult("Service is running in read-only mode", true));
+                break;
+            }
+
+            for (auto it = items.begin(); it != items.end(); it++)
+            {
+                QJsonObject item = it->toObject(), properties = item.value("properties").toObject(), result = {{"ok", false}};
+                quint8 endpointId = getEndpointId(item.value("endpoint").toVariant());
+                const Device &device = findDevice(item.value("device").toString());
+
+                result.insert("endpoint", endpointId ? QJsonValue(endpointId) : QJsonValue("common"));
+
+                if (!device.isNull())
+                {
+                    const Endpoint &endpoint = device->endpoints().value(endpointId);
+                    QString topic = QString("td/%1").arg(device->topic());
+                    QList <QString> writable, invalid;
+                    QJsonObject payload;
+
+                    result.insert("device", device->key());
+
+                    if (endpoint.isNull())
+                    {
+                        result.insert("error", "Endpoint not found");
+                        results.append(result);
+                        continue;
+                    }
+
+                    if (properties.isEmpty())
+                    {
+                        result.insert("error", "Properties is empty");
+                        results.append(result);
+                        continue;
+                    }
+
+                    for (auto it = endpoint->properties().begin(); it != endpoint->properties().end(); it++)
+                        if (it.value()->writable())
+                            writable.append(it.key());
+
+                    for (auto it = properties.begin(); it != properties.end(); it++)
+                        if (!writable.contains(it.key()))
+                            invalid.append(it.key());
+
+                    if (!invalid.isEmpty())
+                    {
+                        result.insert("error", writable.isEmpty() ? QString("Device has no writable properties on this endpoint") : QString("Invalid properties: %1 (writable: %2)").arg(invalid.join(", "), writable.join(", ")));
+                        results.append(result);
+                        continue;
+                    }
+
+                    for (auto it = properties.begin(); it != properties.end(); it++)
+                        payload.insert(it.key(), it.value().isString() ? QJsonValue::fromVariant(Parser::stringValue(it.value().toString())) : it.value());
+
+                    if (endpointId)
+                        topic.append(QString("/%1").arg(endpointId));
+
+                    result.insert("properties", QJsonArray::fromStringList(properties.keys()));
+                    result.insert("topic", topic);
+                    result.insert("ok", true);
+                    results.append(result);
+
+                    mqttPublish(mqttTopic(topic), payload);
+                    error = false;
+                    continue;
+                }
+
+                result.insert("device", item.value("device").toString());
+                result.insert("error", "Device not found");
+                results.append(result);
+                continue;
+            }
+
+            rpcResponse(socket, id, toolResult(QJsonDocument(QJsonObject {{"results", results}}).toJson(QJsonDocument::Compact), error));
+            break;
         }
 
-        Device device = findDevice(arguments.value("device").toString());
-
-        if (device.isNull())
+        case 3: // query_history
         {
+            const Device &device = findDevice(arguments.value("device").toString());
+
+            if (!m_services.contains("recorder"))
+            {
+                rpcResponse(socket, id, toolResult("HOMEd Recorder service is unavailable", true));
+                return;
+            }
+
+            if (!device.isNull())
+            {
+                QString property = arguments.value("property").toString(), uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
+                quint8 endpointId = getEndpointId(arguments.value("endpoint").toVariant());
+                const Endpoint &endpoint = device->endpoints().value(static_cast <quint8> (endpointId));
+
+                if (endpoint.isNull() || !endpoint->properties().contains(property) || !endpoint->properties().value(property)->history())
+                {
+                    rpcResponse(socket, id, toolResult(QString("No history is recorded for property \"%1\" on endpoint \"%2\" of device \"%3\", only properties marked with \"history\" in list_devices/get_device can be queried").arg(property, endpointId ? QString::number(endpointId) : QString("common"), device->key()), true));
+                    return;
+                }
+
+                m_requests.append({socket, id, uuid, QDateTime::currentMSecsSinceEpoch() + REQUEST_TIMEOUT});
+                mqttPublish(mqttTopic("command/recorder"), {{"action", "getData"}, {"id", uuid}, {"endpoint", endpointId ? QString("%1/%2").arg(device->key()).arg(endpointId) : device->key()}, {"property", property}, {"start", arguments.value("start")}, {"end", arguments.value("end")}});
+                break;
+            }
+
             rpcResponse(socket, id, toolResult(QString("Device \"%1\" not found").arg(arguments.value("device").toString()), true));
-            return;
+            break;
         }
 
-        QString property = arguments.value("property").toString();
-        quint8 endpoint = getEndpointId(arguments.value("endpoint").toVariant());
-        const Endpoint &target = device->endpoints().value(static_cast <quint8> (endpoint));
-
-        if (target.isNull() || !target->properties().contains(property) || !target->properties().value(property)->history())
+        default:
         {
-            rpcResponse(socket, id, toolResult(QString("No history is recorded for property \"%1\" of device \"%2\"; only properties marked with \"history\" in get_device can be queried").arg(property, device->key()), true));
-            return;
+            rpcError(socket, id, -32602, QString("Unknown tool \"%1\"").arg(name));
+            break;
         }
-
-        QString endpointKey = endpoint ? QString("%1/%2").arg(device->key()).arg(endpoint) : device->key();
-        QString uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
-
-        m_requests.append({socket, id, uuid, QDateTime::currentMSecsSinceEpoch() + REQUEST_TIMEOUT});
-        mqttPublish(mqttTopic("command/recorder"), {{"action", "getData"}, {"id", uuid}, {"endpoint", endpointKey}, {"property", property}, {"start", arguments.value("start")}, {"end", arguments.value("end")}});
-
-        return;
     }
-
-    rpcError(socket, id, -32602, QString("Unknown tool: %1").arg(name));
 }
-//
-
-
-
-
 
 void Controller::handleRpc(QTcpSocket *socket, const QJsonObject &request)
 {

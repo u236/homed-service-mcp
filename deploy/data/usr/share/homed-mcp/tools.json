@@ -123,14 +123,14 @@
   },
   {
     "name": "set_properties",
-    "description": "Publish property updates to HOMEd devices in a single batch call. Always prefer one call with many operations to many sequential calls.\n\nOne operation targets ONE (device, endpoint) pair. To know what you can write, call get_device (or list_devices) and inspect `properties.<endpoint>`: every entry with `writable: true` may be set, the key is the exact sub-key you put under `properties`, and `enum`/`min`/`max`/`unit`/`note` describe the accepted value. For `endpoint`, echo the key exactly as it appears under `properties` in get_device: the string \"common\" or the numeric id (e.g. 5). `endpoint` may be omitted, which is treated the same as \"common\" (also use \"common\"/omit when sub-keys carry a `_N` suffix). Group several sub-keys of the same (device, endpoint) into one operation.\n\nOperations are processed independently — failure on one does not abort the others.\n",
+    "description": "Publish property updates to HOMEd devices in a single batch call. Always prefer one call with many items to many sequential calls.\n\nOne item targets ONE (device, endpoint) pair. To know what you can write, call get_device (or list_devices) and inspect `properties.<endpoint>`: every entry with `writable: true` may be set, the key is the exact sub-key you put under `properties`, and `enum`/`min`/`max`/`unit`/`note` describe the accepted value. For `endpoint`, echo the key exactly as it appears under `properties` in get_device: the string \"common\" or the numeric id (e.g. 5). `endpoint` may be omitted, which is treated the same as \"common\" (also use \"common\"/omit when sub-keys carry a `_N` suffix). Group several sub-keys of the same (device, endpoint) into one item.\n\nItems are processed independently — failure on one does not abort the others.\n",
     "inputSchema": {
       "type": "object",
       "required": [
-        "operations"
+        "items"
       ],
       "properties": {
-        "operations": {
+        "items": {
           "type": "array",
           "minItems": 1,
           "description": "Array of independent updates. Each item targets ONE (device, endpoint) pair and may carry multiple sub-keys.",
@@ -168,7 +168,7 @@
       "properties": {
         "results": {
           "type": "array",
-          "description": "One result per operation, in input order. Operations are independent — a failure on one does not affect the others.",
+          "description": "One result per item, in input order. Items are independent — a failure on one does not affect the others.",
           "items": {
             "type": "object",
             "required": [
@@ -183,7 +183,7 @@
               },
               "endpoint": {
                 "type": ["string", "integer"],
-                "description": "The endpoint the operation targeted: \"common\" or the numeric id, echoed from the request."
+                "description": "The endpoint the item targeted: \"common\" or the numeric id, echoed from the request."
               },
               "topic": {
                 "type": "string",
@@ -191,14 +191,14 @@
               },
               "properties": {
                 "type": "array",
-                "description": "Sub-keys written in this operation (present on success).",
+                "description": "Sub-keys written in this item (present on success).",
                 "items": {
                   "type": "string"
                 }
               },
               "ok": {
                 "type": "boolean",
-                "description": "Whether the operation was published successfully."
+                "description": "Whether the item was published successfully."
               },
               "error": {
                 "type": "string",
