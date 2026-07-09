@@ -170,7 +170,7 @@ void Controller::rpcError(QTcpSocket *socket, const QVariant &id, int code, cons
 
 QJsonObject Controller::toolResult(const QJsonObject &data)
 {
-    QJsonObject result {{"isError", false}, {"structuredContent", data}};
+    QJsonObject result {{"isError", false}, {"content", QJsonArray()}, {"structuredContent", data}};
 
     if (m_text)
         result.insert("content", QJsonArray {QJsonObject {{"type", "text"}, {"text", QString(QJsonDocument(data).toJson(QJsonDocument::Compact))}}});
