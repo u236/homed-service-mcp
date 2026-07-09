@@ -681,7 +681,7 @@ void Controller::readyRead(void)
     QTcpSocket *socket = reinterpret_cast <QTcpSocket*> (sender());
     QByteArray request = socket->readAll();
     QList <QString> list = QString(request).split("\r\n\r\n"), head = list.value(0).split("\r\n"), target = head.value(0).split(0x20);
-    QString method = target.value(0), content = list.value(1);
+    QByteArray method = target.value(0).toUtf8(), content = list.value(1).toUtf8();
     QMap <QString, QString> headers;
     QJsonObject json;
 
@@ -710,11 +710,8 @@ void Controller::readyRead(void)
         return;
     }
 
-    if (headers.value("content-length").toInt() > content.length())
-    {
-        socket->waitForReadyRead();
+    while (content.length() < headers.value("content-length").toInt() && socket->waitForReadyRead(REQUEST_TIMEOUT))
         content.append(socket->readAll());
-    }
 
     if (!m_token.isEmpty())
     {
@@ -727,7 +724,7 @@ void Controller::readyRead(void)
         }
     }
 
-    json = QJsonDocument::fromJson(content.toUtf8()).object();
+    json = QJsonDocument::fromJson(content).object();
 
     if (!json.isEmpty())
     {
