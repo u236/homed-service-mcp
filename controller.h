@@ -1,7 +1,7 @@
 #ifndef CONTROLLER_H
 #define CONTROLLER_H
 
-#define SERVICE_VERSION     "0.0.4"
+#define SERVICE_VERSION     "1.0.0"
 #define PROTOCOL_VERSION    "2025-11-25"
 #define REQUEST_TIMEOUT     5000
 
@@ -31,7 +31,7 @@ private:
     QTimer *m_timer;
 
     QString m_sessionId, m_token;
-    bool m_write, m_debug;
+    bool m_content, m_write, m_debug;
 
     QJsonObject m_initialize;
     QJsonArray m_resources, m_tools;
@@ -56,7 +56,9 @@ private:
     void httpResponse(QTcpSocket *socket, quint16 code, const QByteArray &response = QByteArray());
     void rpcResponse(QTcpSocket *socket, const QVariant &id, const QJsonValue &result = QJsonObject());
     void rpcError(QTcpSocket *socket, const QVariant &id, int code, const QString &message);
-    QJsonObject toolResult(const QString &text, bool error = false);
+
+    QJsonObject toolResult(const QJsonObject &data);
+    QJsonObject toolError(const QString &error);
 
     void readResources(QTcpSocket *socket, const QVariant &id, const QString &uri);
     void callTools(QTcpSocket *socket, const QVariant &id, const QString &name, const QJsonObject &arguments);

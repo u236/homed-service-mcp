@@ -10,6 +10,7 @@ Controller::Controller(const QString &configFile) : HOMEd(SERVICE_VERSION, confi
     m_sessionId = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
     m_token = getConfig()->value("server/token").toString();
+    m_content = getConfig()->value("server/content", true).toBool();
     m_write = getConfig()->value("server/write", false).toBool();
     m_debug = getConfig()->value("server/debug", false).toBool();
 
@@ -167,9 +168,19 @@ void Controller::rpcError(QTcpSocket *socket, const QVariant &id, int code, cons
     httpResponse(socket, 200, QJsonDocument({{"jsonrpc", "2.0"}, {"id", QJsonValue::fromVariant(id)}, {"error", QJsonObject {{"code", code}, {"message", message}}}}).toJson(QJsonDocument::Compact));
 }
 
-QJsonObject Controller::toolResult(const QString &text, bool error)
+QJsonObject Controller::toolResult(const QJsonObject &data)
 {
-    return QJsonObject {{"content", QJsonArray {QJsonObject {{"type", "text"}, {"text", text}}}}, {"isError", error}};
+    QJsonObject result {{"isError", false}, {"structuredContent", data}};
+
+    if (m_content)
+        result.insert("content", QJsonArray {QJsonObject {{"type", "text"}, {"text", QString(QJsonDocument(data).toJson(QJsonDocument::Compact))}}});
+
+    return result;
+}
+
+QJsonObject Controller::toolError(const QString &error)
+{
+    return QJsonObject {{"isError", true}, {"content", QJsonArray {QJsonObject {{"type", "text"}, {"text", error}}}}};
 }
 
 void Controller::readResources(QTcpSocket *socket, const QVariant &id, const QString &uri)
@@ -226,7 +237,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
                 devices.append(deviceInfo(it.value()));
             }
 
-            rpcResponse(socket, id, toolResult(QJsonDocument(QJsonObject {{"devices", devices}}).toJson(QJsonDocument::Compact)));
+            rpcResponse(socket, id, toolResult({{"devices", devices}}));
             break;
         }
 
@@ -236,11 +247,11 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
 
             if (device.isNull())
             {
-                rpcResponse(socket, id, toolResult(QString("Device \"%1\" not found").arg(arguments.value("device").toString()), true));
+                rpcResponse(socket, id, toolError(QString("Device \"%1\" not found").arg(arguments.value("device").toString())));
                 break;
             }
 
-            rpcResponse(socket, id, toolResult(QJsonDocument(deviceInfo(device)).toJson(QJsonDocument::Compact)));
+            rpcResponse(socket, id, toolResult(deviceInfo(device)));
             break;
         }
 
@@ -251,7 +262,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
 
             if (!m_write)
             {
-                rpcResponse(socket, id, toolResult("Service is running in read-only mode", true));
+                rpcResponse(socket, id, toolError("Service is running in read-only mode"));
                 break;
             }
 
@@ -323,7 +334,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
                 continue;
             }
 
-            rpcResponse(socket, id, toolResult(QJsonDocument(QJsonObject {{"results", results}}).toJson(QJsonDocument::Compact), error));
+            rpcResponse(socket, id, error ? toolError(QString(QJsonDocument(QJsonObject {{"results", results}}).toJson(QJsonDocument::Compact))) : toolResult({{"results", results}}));
             break;
         }
 
@@ -333,7 +344,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
 
             if (!m_services.contains("recorder"))
             {
-                rpcResponse(socket, id, toolResult("HOMEd Recorder service is unavailable", true));
+                rpcResponse(socket, id, toolError("HOMEd Recorder service is unavailable"));
                 return;
             }
 
@@ -345,7 +356,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
 
                 if (endpoint.isNull() || !endpoint->properties().contains(property) || !endpoint->properties().value(property)->history())
                 {
-                    rpcResponse(socket, id, toolResult(QString("No history is recorded for property \"%1\" on endpoint \"%2\" of device \"%3\", only properties marked with \"history\" in list_devices/get_device can be queried").arg(property, endpointId ? QString::number(endpointId) : QString("common"), device->key()), true));
+                    rpcResponse(socket, id, toolError(QString("No history is recorded for property \"%1\" on endpoint \"%2\" of device \"%3\", only properties marked with \"history\" in list_devices/get_device can be queried").arg(property, endpointId ? QString::number(endpointId) : QString("common"), device->key())));
                     return;
                 }
 
@@ -354,7 +365,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
                 break;
             }
 
-            rpcResponse(socket, id, toolResult(QString("Device \"%1\" not found").arg(arguments.value("device").toString()), true));
+            rpcResponse(socket, id, toolError(QString("Device \"%1\" not found").arg(arguments.value("device").toString())));
             break;
         }
 
@@ -458,7 +469,7 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
         if (check && m_sockets.contains(request.socket))
         {
             json.remove("id");
-            rpcResponse(request.socket, request.id, toolResult(QJsonDocument(json).toJson(QJsonDocument::Compact)));
+            rpcResponse(request.socket, request.id, toolResult(json));
         }
     }
     else if (subTopic.startsWith("service/"))
@@ -751,6 +762,6 @@ void Controller::checkRequests(void)
         if (!m_sockets.contains(request.socket))
             continue;
 
-        rpcResponse(request.socket, request.id, toolResult("Request timed out", true));
+        rpcResponse(request.socket, request.id, toolError("Request timed out"));
     }
 }
