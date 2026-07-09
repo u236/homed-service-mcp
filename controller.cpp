@@ -10,7 +10,7 @@ Controller::Controller(const QString &configFile) : HOMEd(SERVICE_VERSION, confi
     m_sessionId = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
     m_token = getConfig()->value("server/token").toString();
-    m_content = getConfig()->value("server/content", true).toBool();
+    m_text = getConfig()->value("server/text", true).toBool();
     m_write = getConfig()->value("server/write", false).toBool();
     m_debug = getConfig()->value("server/debug", false).toBool();
 
@@ -172,7 +172,7 @@ QJsonObject Controller::toolResult(const QJsonObject &data)
 {
     QJsonObject result {{"isError", false}, {"structuredContent", data}};
 
-    if (m_content)
+    if (m_text)
         result.insert("content", QJsonArray {QJsonObject {{"type", "text"}, {"text", QString(QJsonDocument(data).toJson(QJsonDocument::Compact))}}});
 
     return result;

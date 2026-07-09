@@ -31,7 +31,7 @@ private:
     QTimer *m_timer;
 
     QString m_sessionId, m_token;
-    bool m_content, m_write, m_debug;
+    bool m_text, m_write, m_debug;
 
     QJsonObject m_initialize;
     QJsonArray m_resources, m_tools;
