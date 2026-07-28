@@ -633,7 +633,7 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
         if (!device.isNull())
         {
             QList <QString> list = {"action", "event", "scene"};
-            const Endpoint endpoint = device->endpoints().value(getEndpointId(string));
+            const Endpoint endpoint = device->endpoints().value(getEndpointId(string.replace(device->topic(), device->key())));
 
             if (endpoint.isNull())
                 return;
