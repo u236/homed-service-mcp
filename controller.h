@@ -1,7 +1,7 @@
 #ifndef CONTROLLER_H
 #define CONTROLLER_H
 
-#define SERVICE_VERSION     "1.0.0"
+#define SERVICE_VERSION     "1.0.1"
 #define PROTOCOL_VERSION    "2025-11-25"
 #define REQUEST_TIMEOUT     5000
 

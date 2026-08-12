@@ -56,6 +56,9 @@ void EndpointObject::parseExpose(const QString &exposeName, const QJsonObject &e
     QList <QString> list = {"switch", "lock", "light", "cover", "thermostat", "button"};
     QString itemName = exposeName.split('_').value(0), suffix = exposeName.mid(itemName.length());
 
+    if (itemName.isEmpty())
+        return;
+
     switch (list.indexOf(itemName))
     {
         case 0: // switch
@@ -190,15 +193,21 @@ void EndpointObject::parseExpose(const QString &exposeName, const QJsonObject &e
     }
 }
 
-void DeviceObject::parseExposes(const QJsonObject &exposes)
+void DeviceObject::parseExposes(const QJsonObject &json)
 {
     m_endpoints.clear();
 
-    for (auto it = exposes.begin(); it != exposes.end(); it++)
+    for (auto it = json.begin(); it != json.end(); it++)
     {
-        Endpoint endpoint(new EndpointObject(it.key() == "common" ? 0 : static_cast <quint8> (it.key().toInt())));
-        QJsonObject json = it.value().toObject(), options = json.value("options").toObject();
-        QJsonArray items = json.value("items").toArray();
+        Endpoint endpoint;
+        QJsonObject data = it.value().toObject(), options = data.value("options").toObject();
+        QJsonArray items = data.value("items").toArray();
+        int endpointId = it.key().toInt();
+
+        if (items.isEmpty() || (it.key() != "common" && (endpointId < 1 || endpointId > 255)))
+            continue;
+
+        endpoint = Endpoint(new EndpointObject(static_cast <quint8> (endpointId)));
 
         for (auto it = items.begin(); it != items.end(); it++)
             endpoint->parseExpose(it->toString(), options);

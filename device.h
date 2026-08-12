@@ -107,7 +107,7 @@ public:
 
     inline QMap <quint8, Endpoint> &endpoints(void) { return m_endpoints; }
 
-    void parseExposes(const QJsonObject &exposes);
+    void parseExposes(const QJsonObject &json);
     QJsonObject serializeProperties(void);
 
 private:
