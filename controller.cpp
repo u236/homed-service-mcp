@@ -742,7 +742,7 @@ void Controller::checkRequests(void)
 
     for (auto it = m_requests.begin(); it != m_requests.end(); NULL)
     {
-        if (now > it->expires)
+        if (now > it->expire)
         {
             list.append(*it);
             it = m_requests.erase(it);

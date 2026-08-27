@@ -14,7 +14,7 @@ struct RecorderRequest
     QTcpSocket *socket;
     QVariant id;
     QString uuid;
-    qint64 expires;
+    qint64 expire;
 };
 
 class Controller : public HOMEd

@@ -1,56 +1,5 @@
 #include "device.h"
 
-Property EndpointObject::addProperty(const QString &name, bool writable, const QJsonObject &options)
-{
-    Property property(new PropertyObject(name));
-
-    if (options.contains("enum"))
-    {
-        QVariant data = options.value("enum").toVariant();
-        QList <QVariant> list;
-
-        switch (data.type())
-        {
-            case QVariant::Map:
-            {
-
-                QMap <QString, QVariant> map = data.toMap();
-
-                for (auto it = map.begin(); it != map.end(); it++)
-                    list.append(it.value());
-
-                break;
-            }
-
-            case QVariant::List: list = data.toList(); break;
-            default: break;
-        }
-
-        for (auto it = list.begin(); it != list.end(); it++)
-        {
-            QString string = it->toString();
-
-            if (property->enumValues().contains(string))
-                continue;
-
-            property->enumValues().append(string);
-        }
-    }
-
-    if (options.contains("unit"))
-        property->setUnit(options.value("unit").toString());
-
-    if (options.contains("min"))
-        property->setMin(options.value("min").toVariant());
-
-    if (options.contains("max"))
-        property->setMax(options.value("max").toVariant());
-
-    property->setWritable(writable);
-    m_properties.insert(name, property);
-    return property;
-}
-
 void EndpointObject::parseExpose(const QString &exposeName, const QJsonObject &endpointOptions)
 {
     QList <QString> list = {"switch", "lock", "light", "cover", "thermostat", "button"};
@@ -138,7 +87,7 @@ void EndpointObject::parseExpose(const QString &exposeName, const QJsonObject &e
 
         case 4: // thermostat
         {
-            QList <QString> properties = {"targetTemperature", "systemMode", "operationMode", "fanMode", "heatMode"};
+            QList <QString> properties = {"targetTemperature", "systemMode", "operationMode", "fanMode", "swingMode", "heatMode"};
 
             addProperty("temperature")->setUnit("°C");
 
@@ -191,6 +140,57 @@ void EndpointObject::parseExpose(const QString &exposeName, const QJsonObject &e
             break;
         }
     }
+}
+
+Property EndpointObject::addProperty(const QString &name, bool writable, const QJsonObject &options)
+{
+    Property property(new PropertyObject(name));
+
+    if (options.contains("enum"))
+    {
+        QVariant data = options.value("enum").toVariant();
+        QList <QVariant> list;
+
+        switch (data.type())
+        {
+            case QVariant::Map:
+            {
+
+                QMap <QString, QVariant> map = data.toMap();
+
+                for (auto it = map.begin(); it != map.end(); it++)
+                    list.append(it.value());
+
+                break;
+            }
+
+            case QVariant::List: list = data.toList(); break;
+            default: break;
+        }
+
+        for (auto it = list.begin(); it != list.end(); it++)
+        {
+            QString string = it->toString();
+
+            if (property->enumValues().contains(string))
+                continue;
+
+            property->enumValues().append(string);
+        }
+    }
+
+    if (options.contains("unit"))
+        property->setUnit(options.value("unit").toString());
+
+    if (options.contains("min"))
+        property->setMin(options.value("min").toVariant());
+
+    if (options.contains("max"))
+        property->setMax(options.value("max").toVariant());
+
+    property->setWritable(writable);
+    m_properties.insert(name, property);
+    return property;
 }
 
 void DeviceObject::parseExposes(const QJsonObject &json)
