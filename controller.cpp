@@ -231,7 +231,7 @@ void Controller::callTools(QTcpSocket *socket, const QVariant &id, const QString
 
             for (auto it = m_devices.begin(); it != m_devices.end(); it++)
             {
-                if (!service.isEmpty() && !it.value()->topic().startsWith(service))
+                if (!service.isEmpty() && !it.value()->topic().startsWith(QString("%1/").arg(service)))
                     continue;
 
                 devices.append(deviceInfo(it.value()));
