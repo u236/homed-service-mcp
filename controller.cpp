@@ -498,7 +498,6 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
 
             mqttUnsubscribe(mqttTopic("device/%1").arg(it.value()->topic()));
             mqttUnsubscribe(mqttTopic("expose/%1").arg(it.value()->topic()));
-            mqttUnsubscribe(mqttTopic("fd/%1").arg(it.value()->topic()));
             mqttUnsubscribe(mqttTopic("fd/%1/#").arg(it.value()->topic()));
             device->clearTopic();
         }
@@ -574,7 +573,6 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
                     {
                         mqttUnsubscribe(mqttTopic("device/%1").arg(device->topic()));
                         mqttUnsubscribe(mqttTopic("expose/%1").arg(device->topic()));
-                        mqttUnsubscribe(mqttTopic("fd/%1").arg(device->topic()));
                         mqttUnsubscribe(mqttTopic("fd/%1/#").arg(device->topic()));
                     }
 
@@ -621,7 +619,6 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
         device->setHash(hash);
         updateProperties(device);
 
-        mqttSubscribe(mqttTopic("fd/%1").arg(device->topic()));
         mqttSubscribe(mqttTopic("fd/%1/#").arg(device->topic()));
         mqttPublish(mqttTopic("command/%1").arg(device->topic().mid(0, device->topic().lastIndexOf('/'))), {{"action", "getProperties"}, {"device", device->key().mid(device->key().indexOf('/') + 1)}, {"service", "mcp"}});
     }
