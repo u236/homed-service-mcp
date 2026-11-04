@@ -496,9 +496,10 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
             if (!device->topic().startsWith(QString("%1/").arg(service)))
                 continue;
 
-            mqttUnsubscribe(mqttTopic("device/%1").arg(it.value()->topic()));
-            mqttUnsubscribe(mqttTopic("expose/%1").arg(it.value()->topic()));
-            mqttUnsubscribe(mqttTopic("fd/%1/#").arg(it.value()->topic()));
+            mqttUnsubscribe(mqttTopic("device/%1").arg(device->topic()));
+            mqttUnsubscribe(mqttTopic("expose/%1").arg(device->topic()));
+            mqttUnsubscribe(mqttTopic("fd/%1/#").arg(device->topic()));
+
             device->clearTopic();
         }
 
@@ -593,6 +594,7 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
             {
                 mqttSubscribe(mqttTopic("device/%1").arg(topic));
                 mqttSubscribe(mqttTopic("expose/%1").arg(topic));
+                m_devices.value(key)->setHash(QByteArray());
             }
         }
 
@@ -620,7 +622,7 @@ void Controller::mqttReceived(const QByteArray &message, const QMqttTopicName &t
         updateProperties(device);
 
         mqttSubscribe(mqttTopic("fd/%1/#").arg(device->topic()));
-        mqttPublish(mqttTopic("command/%1").arg(device->topic().mid(0, device->topic().lastIndexOf('/'))), {{"action", "getProperties"}, {"device", device->key().mid(device->key().indexOf('/') + 1)}, {"service", "mcp"}});
+        mqttPublish(mqttTopic("command/%1").arg(device->topic().mid(0, device->topic().lastIndexOf('/'))), {{"action", "getProperties"}, {"device", device->topic().split('/').last()}, {"service", "mcp"}});
     }
     else if (subTopic.startsWith("fd/"))
     {
